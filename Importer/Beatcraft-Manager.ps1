@@ -2,7 +2,8 @@ param(
 	[string]$WowPath,
 	[string]$LibraryPath,
 	[string]$Action,
-	[string]$Source
+	[string]$Source,
+	[ValidateSet('compact', 'clear', 'sharp')][string]$VideoQuality = 'clear'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +15,16 @@ $SettingsFile = Join-Path $ScriptDir 'settings.json'
 $AddonSource = Join-Path $Root 'Beatcraft'
 $ImportDir = Join-Path $Root 'Import'
 $LibAddon = 'Beatcraft_Library'
+$FfmpegDir = Join-Path $ScriptDir 'ffmpeg'
+$FfmpegUrl = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
+$VideoProfiles = @{
+	compact = @{ Fps = 8; Cols = 5; Rows = 9; W = 384; H = 216; Size = 2048 }
+	clear = @{ Fps = 12; Cols = 3; Rows = 5; W = 640; H = 360; Size = 2048 }
+	sharp = @{ Fps = 12; Cols = 2; Rows = 3; W = 960; H = 540; Size = 2048 }
+}
+$Video = $VideoProfiles[$VideoQuality]
+$script:Ffmpeg = $null
+$script:IncludeVideo = $true
 $Utf8 = New-Object System.Text.UTF8Encoding $false
 
 Add-Type -AssemblyName System.Drawing
@@ -29,6 +40,16 @@ function Get-Settings {
 		try { return Get-Content -LiteralPath $SettingsFile -Raw | ConvertFrom-Json } catch { }
 	}
 	return [pscustomobject]@{ WowPath = $null; OsuSongs = $null }
+}
+
+function Get-Setting($s, [string]$name, $default) {
+	$p = $s.PSObject.Properties[$name]
+	if ($p -and $null -ne $p.Value) { return $p.Value }
+	return $default
+}
+
+function Set-Setting($s, [string]$name, $value) {
+	$s | Add-Member -NotePropertyName $name -NotePropertyValue $value -Force
 }
 
 function Save-Settings($s) {
@@ -94,7 +115,7 @@ function Select-Flavor($settings, [switch]$Force) {
 function Read-OsuFile([string]$path) {
 	$lines = [IO.File]::ReadAllLines($path, [Text.Encoding]::UTF8)
 	$data = @{
-		Path = $path; General = @{}; Metadata = @{}; Difficulty = @{}; Colours = @{}
+		Path = $path; FormatVersion = 14; General = @{}; Metadata = @{}; Difficulty = @{}; Colours = @{}
 		Events = New-Object System.Collections.Generic.List[string]
 		TimingPoints = New-Object System.Collections.Generic.List[string]
 		HitObjects = New-Object System.Collections.Generic.List[string]
@@ -103,6 +124,7 @@ function Read-OsuFile([string]$path) {
 	foreach ($raw in $lines) {
 		$line = $raw.Trim()
 		if ($line -eq '' -or $line.StartsWith('//')) { continue }
+		if ($line -match '^osu file format v(\d+)$') { $data.FormatVersion = [int]$Matches[1]; continue }
 		if ($line -match '^\[(.+)\]$') { $section = $Matches[1]; continue }
 		switch ($section) {
 			{ $_ -in 'General', 'Metadata', 'Difficulty', 'Colours' } {
@@ -250,12 +272,205 @@ function Save-Mp3Preview([string]$src, [string]$dst, [double]$startMs, [double]$
 	return $total
 }
 
+$BlpSource = @'
+using System;
+using System.IO;
+
+public static class BeatcraftBlp {
+	public static void FromTga(string tgaPath, string blpPath) {
+		byte[] t = File.ReadAllBytes(tgaPath);
+		if (t[2] != 2) throw new Exception("TGA must be uncompressed");
+		int w = t[12] | (t[13] << 8), h = t[14] | (t[15] << 8), px = t[16] / 8;
+		bool topDown = (t[17] & 0x20) != 0;
+		int off = 18 + t[0];
+		int bw = w / 4, bh = h / 4;
+		byte[] data = new byte[bw * bh * 16];
+		byte[] r = new byte[16], g = new byte[16], b = new byte[16];
+		int o = 0;
+		for (int by = 0; by < bh; by++) {
+			for (int bx = 0; bx < bw; bx++) {
+				for (int i = 0; i < 16; i++) {
+					int x = bx * 4 + (i & 3), y = by * 4 + (i >> 2);
+					int row = topDown ? y : h - 1 - y;
+					int p = off + (row * w + x) * px;
+					b[i] = t[p]; g[i] = t[p + 1]; r[i] = t[p + 2];
+				}
+				data[o] = 255; data[o + 1] = 255;
+				o += 8;
+				EncodeColor(r, g, b, data, o);
+				o += 8;
+			}
+		}
+		using (var fs = new FileStream(blpPath, FileMode.Create))
+		using (var bw2 = new BinaryWriter(fs)) {
+			bw2.Write(new byte[] { 66, 76, 80, 50 });
+			bw2.Write((uint)1);
+			bw2.Write((byte)2); bw2.Write((byte)8); bw2.Write((byte)7); bw2.Write((byte)0);
+			bw2.Write((uint)w); bw2.Write((uint)h);
+			bw2.Write((uint)1172);
+			for (int k = 1; k < 16; k++) bw2.Write((uint)0);
+			bw2.Write((uint)data.Length);
+			for (int k = 1; k < 16; k++) bw2.Write((uint)0);
+			bw2.Write(new byte[1024]);
+			bw2.Write(data);
+		}
+	}
+
+	static int To565(int r, int g, int b) {
+		return ((r * 31 + 127) / 255 << 11) | ((g * 63 + 127) / 255 << 5) | ((b * 31 + 127) / 255);
+	}
+
+	static void Expand(int c, out int r, out int g, out int b) {
+		r = ((c >> 11) & 31) * 255 / 31;
+		g = ((c >> 5) & 63) * 255 / 63;
+		b = (c & 31) * 255 / 31;
+	}
+
+	static void EncodeColor(byte[] r, byte[] g, byte[] b, byte[] dst, int o) {
+		int minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0;
+		for (int i = 0; i < 16; i++) {
+			minR = Math.Min(minR, r[i]); maxR = Math.Max(maxR, r[i]);
+			minG = Math.Min(minG, g[i]); maxG = Math.Max(maxG, g[i]);
+			minB = Math.Min(minB, b[i]); maxB = Math.Max(maxB, b[i]);
+		}
+		int insR = (maxR - minR) >> 4, insG = (maxG - minG) >> 4, insB = (maxB - minB) >> 4;
+		int c0 = To565(maxR - insR, maxG - insG, maxB - insB);
+		int c1 = To565(minR + insR, minG + insG, minB + insB);
+		if (c0 < c1) { int tmp = c0; c0 = c1; c1 = tmp; }
+		uint idx = 0;
+		if (c0 != c1) {
+			int r0, g0, b0, r1, g1, b1;
+			Expand(c0, out r0, out g0, out b0);
+			Expand(c1, out r1, out g1, out b1);
+			int[] pr = { r0, r1, (2 * r0 + r1) / 3, (r0 + 2 * r1) / 3 };
+			int[] pg = { g0, g1, (2 * g0 + g1) / 3, (g0 + 2 * g1) / 3 };
+			int[] pb = { b0, b1, (2 * b0 + b1) / 3, (b0 + 2 * b1) / 3 };
+			for (int i = 0; i < 16; i++) {
+				int best = 0, bestD = int.MaxValue;
+				for (int k = 0; k < 4; k++) {
+					int dr = r[i] - pr[k], dg = g[i] - pg[k], db = b[i] - pb[k];
+					int d = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+					if (d < bestD) { bestD = d; best = k; }
+				}
+				idx |= (uint)best << (2 * i);
+			}
+		}
+		dst[o] = (byte)(c0 & 255); dst[o + 1] = (byte)(c0 >> 8);
+		dst[o + 2] = (byte)(c1 & 255); dst[o + 3] = (byte)(c1 >> 8);
+		dst[o + 4] = (byte)(idx & 255); dst[o + 5] = (byte)((idx >> 8) & 255);
+		dst[o + 6] = (byte)((idx >> 16) & 255); dst[o + 7] = (byte)(idx >> 24);
+	}
+}
+'@
+
+function Find-Ffmpeg {
+	$local = Join-Path $FfmpegDir 'ffmpeg.exe'
+	if (Test-Path -LiteralPath $local) { return $local }
+	$cmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
+	if ($cmd) { return $cmd.Source }
+	return $null
+}
+
+function Install-Ffmpeg {
+	$ProgressPreference = 'SilentlyContinue'
+	$zip = Join-Path ([IO.Path]::GetTempPath()) 'beatcraft-ffmpeg.zip'
+	$tmp = Join-Path ([IO.Path]::GetTempPath()) ('beatcraft-ffmpeg-' + [Guid]::NewGuid().ToString('N'))
+	try {
+		Write-Info 'Downloading ffmpeg (about 110 MB)...'
+		Invoke-WebRequest -Uri $FfmpegUrl -OutFile $zip -UseBasicParsing
+		[IO.Compression.ZipFile]::ExtractToDirectory($zip, $tmp)
+		$exe = Get-ChildItem -LiteralPath $tmp -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
+		New-Item -ItemType Directory -Path $FfmpegDir -Force | Out-Null
+		Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $FfmpegDir 'ffmpeg.exe')
+		Write-Good 'ffmpeg installed.'
+		return (Join-Path $FfmpegDir 'ffmpeg.exe')
+	} finally {
+		if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
+		if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+	}
+}
+
+function Initialize-Ffmpeg($settings, [switch]$Interactive) {
+	$script:IncludeVideo = Get-Setting $settings 'IncludeVideo' $true
+	$script:Ffmpeg = Find-Ffmpeg
+	if (-not $script:Ffmpeg -and $Interactive -and -not (Get-Setting $settings 'AskedFfmpeg' $false)) {
+		Write-Host ''
+		Write-Host 'Beatcraft can also import beatmap videos and hitsounds using ffmpeg (free, ~110 MB from gyan.dev).'
+		$a = Read-Host 'Download ffmpeg now? (y/n)'
+		Set-Setting $settings 'AskedFfmpeg' $true
+		Save-Settings $settings
+		if ($a -match '^[yY]') { $script:Ffmpeg = Install-Ffmpeg }
+	}
+}
+
+function Invoke-Ffmpeg([string[]]$arguments) {
+	$old = $ErrorActionPreference
+	$ErrorActionPreference = 'Continue'
+	try {
+		$out = & $script:Ffmpeg @arguments 2>&1 | ForEach-Object { "$_" }
+		return @{ Ok = ($LASTEXITCODE -eq 0); Output = ($out -join "`n") }
+	} finally {
+		$ErrorActionPreference = $old
+	}
+}
+
+function Get-VideoEvent($osu) {
+	foreach ($e in $osu.Events) {
+		if ($e -match '^(1|Video)\s*,\s*(-?\d+)\s*,\s*"?([^",]+)"?') { return @([int]$Matches[2], $Matches[3].Trim()) }
+	}
+	return $null
+}
+
+function Save-Video([string]$src, [string]$dest, [int]$offset) {
+	$probe = Invoke-Ffmpeg @('-hide_banner', '-i', $src)
+	if ($probe.Output -notmatch 'Duration:\s*(\d+):(\d+):(\d+(\.\d+)?)') { throw 'could not read video length' }
+	$seconds = [int]$Matches[1] * 3600 + [int]$Matches[2] * 60 + (ConvertTo-Double $Matches[3])
+	$revision = (Get-StringMd5 ((Get-FileMd5 $src) + ":" + (@($Video.Fps, $Video.Cols, $Video.Rows, $Video.W, $Video.H, $Video.Size) -join ':'))).Substring(0, 12)
+	$assetDir = 'q' + $revision
+	$videoRoot = Join-Path $dest 'video'
+	$dir = Join-Path $videoRoot $assetDir
+	New-Item -ItemType Directory -Path $dir -Force | Out-Null
+	$filter = "fps=$($Video.Fps),scale=$($Video.W):$($Video.H):force_original_aspect_ratio=increase:flags=lanczos,crop=$($Video.W):$($Video.H),tile=$($Video.Cols)x$($Video.Rows),pad=$($Video.Size):$($Video.Size):0:0"
+	$r = Invoke-Ffmpeg @('-hide_banner', '-loglevel', 'error', '-y', '-i', $src, '-an', '-vf', $filter, '-c:v', 'targa', '-rle', '0', '-pix_fmt', 'bgra', (Join-Path $dir 'v%03d.tga'))
+	if (-not $r.Ok) { throw $r.Output }
+	if (-not ('BeatcraftBlp' -as [type])) { Add-Type -TypeDefinition $BlpSource -Language CSharp }
+	$sheets = @(Get-ChildItem -LiteralPath $dir -Filter 'v*.tga')
+	foreach ($sheet in $sheets) {
+		[BeatcraftBlp]::FromTga($sheet.FullName, [IO.Path]::ChangeExtension($sheet.FullName, '.blp'))
+		Remove-Item -LiteralPath $sheet.FullName
+	}
+	$frames = [int][Math]::Floor($seconds * $Video.Fps)
+	$info = @($offset, $Video.Fps, $Video.Cols, $Video.Rows, $Video.W, $Video.H, $Video.Size, $sheets.Count, $frames, $assetDir) -join ' '
+	[IO.File]::WriteAllText((Join-Path $videoRoot 'video.txt'), $info)
+	return $sheets.Count
+}
+
+function Save-Hitsounds([string]$src, [string]$dest) {
+	$dir = Join-Path $dest 'hs'
+	$count = 0
+	foreach ($f in Get-ChildItem -LiteralPath $src -File) {
+		if ($f.Name -notmatch '^(normal|soft|drum)-(hitnormal|hitwhistle|hitfinish|hitclap)(\d*)\.(wav|ogg|mp3)$') { continue }
+		New-Item -ItemType Directory -Path $dir -Force | Out-Null
+		$name = [IO.Path]::GetFileNameWithoutExtension($f.Name).ToLower()
+		if ($f.Length -lt 100) {
+			[IO.File]::WriteAllText((Join-Path $dir "$name.silent"), '')
+		} elseif ($f.Extension -ieq '.ogg') {
+			Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $dir "$name.ogg")
+		} else {
+			$r = Invoke-Ffmpeg @('-hide_banner', '-loglevel', 'error', '-y', '-i', $f.FullName, '-c:a', 'libvorbis', '-q:a', '5', '-ar', '44100', (Join-Path $dir "$name.ogg"))
+			if (-not $r.Ok) { continue }
+		}
+		$count++
+	}
+	return $count
+}
+
 function Get-LibraryRoot([string]$wow) {
 	if ($LibraryPath) { return $LibraryPath }
 	return Join-Path $wow "Interface\AddOns\$LibAddon"
 }
 
-function Import-SetFolder([string]$dir, [string]$libRoot) {
+function Import-SetFolder([string]$dir, [string]$libRoot, [string]$label) {
 	$osuFiles = @(Get-ChildItem -LiteralPath $dir -Filter '*.osu' -File)
 	$maps = @()
 	foreach ($f in $osuFiles) {
@@ -264,9 +479,16 @@ function Import-SetFolder([string]$dir, [string]$libRoot) {
 			if ($m.Mode -eq 0 -and $m.HitObjects.Count -gt 0) { $maps += $m }
 		} catch { Write-Warn "  could not read $($f.Name): $_" }
 	}
-	$name = Split-Path -Leaf $dir
+	$name = $label
+	if (-not $name) { $name = Split-Path -Leaf $dir }
 	if ($maps.Count -eq 0) {
-		Write-Warn "  skipped '$name': no osu!standard difficulties"
+		$modes = @{ 1 = 'osu!taiko'; 2 = 'osu!catch'; 3 = 'osu!mania' }
+		$found = @($osuFiles | ForEach-Object { try { $modes[(Read-OsuFile $_.FullName).Mode] } catch { } } | Where-Object { $_ } | Select-Object -Unique)
+		if ($found.Count -gt 0) {
+			Write-Warn "  skipped '$name': it's an $($found -join '/') map; Beatcraft plays osu!standard maps only"
+		} else {
+			Write-Warn "  skipped '$name': no osu!standard difficulties"
+		}
 		return $false
 	}
 	$first = $maps[0]
@@ -315,7 +537,23 @@ function Import-SetFolder([string]$dir, [string]$libRoot) {
 			if ($total -gt 0) { [IO.File]::WriteAllText((Join-Path $dest 'length.txt'), [string][int]$total) }
 		} catch { Write-Warn "  preview not created: $_" }
 	}
-	Write-Good ("  + {0} - {1}  ({2} difficulties)" -f (Get-Field $meta 'Artist' '?'), (Get-Field $meta 'Title' '?'), $i)
+	$extras = @()
+	if ($script:Ffmpeg) {
+		$vid = Get-VideoEvent $first
+		if ($vid -and $script:IncludeVideo) {
+			$vidPath = Join-Path $dir $vid[1]
+			if (Test-Path -LiteralPath $vidPath) {
+				try { $extras += "video, $(Save-Video $vidPath $dest $vid[0]) sheets" } catch { Write-Warn "  video not converted: $_" }
+			}
+		}
+		try {
+			$n = Save-Hitsounds $dir $dest
+			if ($n -gt 0) { $extras += "$n hitsounds" }
+		} catch { Write-Warn "  hitsounds not converted: $_" }
+	}
+	$extraText = ''
+	if ($extras.Count -gt 0) { $extraText = ', ' + ($extras -join ', ') }
+	Write-Good ("  + {0} - {1}  ({2} difficulties{3})" -f (Get-Field $meta 'Artist' '?'), (Get-Field $meta 'Title' '?'), $i, $extraText)
 	return $true
 }
 
@@ -323,7 +561,7 @@ function Import-Osz([string]$file, [string]$libRoot) {
 	$tmp = Join-Path ([IO.Path]::GetTempPath()) ('beatcraft_' + [Guid]::NewGuid().ToString('N'))
 	try {
 		[IO.Compression.ZipFile]::ExtractToDirectory($file, $tmp)
-		return Import-SetFolder $tmp $libRoot
+		return Import-SetFolder $tmp $libRoot (Split-Path -Leaf $file)
 	} catch {
 		Write-Warn "  could not open $(Split-Path -Leaf $file): $_"
 		return $false
@@ -367,7 +605,7 @@ function Compress-HitObject([string]$line) {
 	if ($f.Count -lt 4) { return $null }
 	$type = 0
 	[void][int]::TryParse($f[3], [ref]$type)
-	if (($type -band 2) -ne 0) { $keep = 8 } elseif (($type -band 8) -ne 0) { $keep = 6 } else { $keep = 4 }
+	if (($type -band 2) -ne 0) { $keep = 11 } elseif (($type -band 8) -ne 0) { $keep = 7 } else { $keep = 6 }
 	if ($f.Count -lt $keep) { $keep = $f.Count }
 	return ($f[0..($keep - 1)] -join ',')
 }
@@ -430,6 +668,7 @@ function Get-MapEntry($osu, [string]$hash) {
 	[void]$sb.Append(",n=$($objects.Count),first=$(ConvertTo-LuaNumber $firstT),last=$(ConvertTo-LuaNumber $lastT),len=$(ConvertTo-LuaNumber ($lastT - $firstT))")
 	[void]$sb.Append(",bpm=$(ConvertTo-LuaNumber ([Math]::Round($bpm, 2)))")
 	[void]$sb.Append(",lead=$(ConvertTo-LuaNumber (Get-Field $osu.General 'AudioLeadIn' '0'))")
+	[void]$sb.Append(",formatVersion=$($osu.FormatVersion),stack=$(ConvertTo-LuaNumber (Get-Field $osu.General 'StackLeniency' '0.7'))")
 	if ($colors.Count -gt 0) { [void]$sb.Append(",colors=`"$($colors -join ';')`"") }
 	if ($breaks.Count -gt 0) { [void]$sb.Append(",breaks=`"$($breaks -join "\n")`"") }
 	[void]$sb.Append(",`ntiming=[==[`n$($osu.TimingPoints -join "`n")]==]")
@@ -486,6 +725,22 @@ function Build-Library([string]$libRoot, [string]$wow) {
 		$lenFile = Join-Path $dir.FullName 'length.txt'
 		if (Test-Path -LiteralPath $lenFile) { [void]$sb.Append(",audioLen=$((Get-Content -LiteralPath $lenFile -Raw).Trim())") }
 		[void]$sb.Append(",previewTime=$(ConvertTo-LuaNumber (Get-Field $first.General 'PreviewTime' '-1'))")
+		$videoInfo = Join-Path $dir.FullName 'video\video.txt'
+		if (Test-Path -LiteralPath $videoInfo) {
+			$v = (Get-Content -LiteralPath $videoInfo -Raw).Trim().Split(' ')
+			$videoPrefix = "$prefix$id\\video\\"
+			if ($v.Count -gt 9 -and $v[9] -match '^q[a-f0-9]{12}$') { $videoPrefix += "$($v[9])\\" }
+			[void]$sb.Append(",video={offset=$($v[0]),fps=$($v[1]),cols=$($v[2]),rows=$($v[3]),fw=$($v[4]),fh=$($v[5]),size=$($v[6]),sheets=$($v[7]),frames=$($v[8]),path=`"$($videoPrefix)v`"}")
+		}
+		$hsDir = Join-Path $dir.FullName 'hs'
+		if (Test-Path -LiteralPath $hsDir) {
+			$samples = @()
+			foreach ($h in Get-ChildItem -LiteralPath $hsDir -File) {
+				$key = [IO.Path]::GetFileNameWithoutExtension($h.Name)
+				if ($h.Extension -eq '.silent') { $samples += "[`"$key`"]=`"`"" } else { $samples += "[`"$key`"]=`"$prefix$id\\hs\\$($h.Name)`"" }
+			}
+			if ($samples.Count -gt 0) { [void]$sb.Append(",samples={$($samples -join ',')}") }
+		}
 		[void]$sb.Append(",maps={`n")
 		[void]$sb.Append(($maps -join ",`n"))
 		[void]$sb.Append("}},`n")
@@ -513,8 +768,8 @@ function Install-Addon([string]$wow) {
 	$addons = Join-Path $wow 'Interface\AddOns'
 	New-Item -ItemType Directory -Path $addons -Force | Out-Null
 	$dest = Join-Path $addons 'Beatcraft'
-	if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
-	Copy-Item -LiteralPath $AddonSource -Destination $dest -Recurse
+	New-Item -ItemType Directory -Path $dest -Force | Out-Null
+	Get-ChildItem -LiteralPath $AddonSource | Copy-Item -Destination $dest -Recurse -Force
 	Write-Good "Installed Beatcraft to $dest"
 }
 
@@ -547,7 +802,7 @@ function Invoke-ImportFolder([string]$wow, [string]$from) {
 			Move-Item -LiteralPath $item.FullName -Destination $target
 		}
 	}
-	Write-Good "Imported $ok of $($items.Count). (Imported files were moved to Import\Imported.)"
+	Write-Good "Imported $ok of $($items.Count)."
 	Build-Library $libRoot $wow | Out-Null
 }
 
@@ -627,6 +882,7 @@ function Invoke-Remove([string]$wow) {
 function Show-Menu {
 	$settings = Get-Settings
 	$wow = Select-Flavor $settings
+	Initialize-Ffmpeg $settings -Interactive
 	while ($true) {
 		Write-Host ''
 		Write-Title '=== Beatcraft Manager ==='
@@ -640,6 +896,11 @@ function Show-Menu {
 		Write-Host '  [4] Remove songs'
 		Write-Host '  [5] Rebuild the song library'
 		Write-Host '  [6] Choose a different WoW version'
+		$ffState = 'not installed'
+		if ($script:Ffmpeg) { $ffState = 'installed' }
+		$vidState = 'off'
+		if ($script:IncludeVideo) { $vidState = 'on' }
+		Write-Host "  [7] Import videos: $vidState   (ffmpeg: $ffState)"
 		Write-Host '  [Q] Quit'
 		$c = (Read-Host 'Choose').Trim().ToUpper()
 		try {
@@ -650,6 +911,16 @@ function Show-Menu {
 				'4' { Invoke-Remove $wow }
 				'5' { Build-Library (Get-LibraryRoot $wow) $wow | Out-Null }
 				'6' { $wow = Select-Flavor $settings -Force }
+				'7' {
+					if (-not $script:Ffmpeg) {
+						$a = Read-Host 'Videos and hitsounds need ffmpeg (free, ~110 MB from gyan.dev). Download it now? (y/n)'
+						if ($a -match '^[yY]') { $script:Ffmpeg = Install-Ffmpeg }
+					} else {
+						$script:IncludeVideo = -not $script:IncludeVideo
+						Set-Setting $settings 'IncludeVideo' $script:IncludeVideo
+						Save-Settings $settings
+					}
+				}
 				'Q' { return }
 				default { continue }
 			}
@@ -664,6 +935,7 @@ function Show-Menu {
 
 if ($Action) {
 	if (-not $WowPath -and -not $LibraryPath) { $WowPath = Select-Flavor (Get-Settings) }
+	Initialize-Ffmpeg (Get-Settings)
 	switch ($Action) {
 		'install' { Install-Addon $WowPath }
 		'import' {

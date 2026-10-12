@@ -58,26 +58,55 @@ def polar(x, y, size):
     return math.hypot(dx, dy), math.atan2(dy, dx)
 
 
+def smooth(edge0, edge1, v):
+    t = min(max((v - edge0) / (edge1 - edge0), 0.0), 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def band(d, inner, outer, soft=1.0):
+    return smooth(inner - soft, inner + soft, d) * (1 - smooth(outer - soft, outer + soft, d))
+
+
 def circle(x, y):
-    d, _ = polar(x, y, 128)
-    if d > 60:
+    d, _ = polar(x, y, 256)
+    if d > 121:
         return (1, 1, 1, 0)
-    shade = 1.0 - 0.25 * (d / 60) ** 2
-    return (shade, shade, shade, 1)
+    shade = 0.45 + 0.32 * (1 - (d / 120) ** 2) + 0.12 * (1 - y / 256)
+    return (shade, shade, shade, 1 - smooth(119, 121, d))
 
 
 def circle_overlay(x, y):
-    d, _ = polar(x, y, 128)
-    if 54 <= d <= 61:
-        return (1, 1, 1, 1)
-    if 49 <= d < 54:
-        return (0, 0, 0, 0.35 * (d - 49) / 5)
-    return (1, 1, 1, 0)
+    d, _ = polar(x, y, 256)
+    rim = band(d, 111, 119)
+    edge = band(d, 119, 123) * 0.55
+    shadow = band(d, 104, 110) * 0.28
+    if rim > 0.01:
+        return (1, 1, 1, rim)
+    if edge > 0.01:
+        return (0, 0, 0, edge)
+    return (0, 0, 0, shadow)
 
 
 def approach(x, y):
-    d, _ = polar(x, y, 128)
-    return (1, 1, 1, 1 if 57 <= d <= 62 else 0)
+    d, _ = polar(x, y, 256)
+    return (1, 1, 1, band(d, 117, 122))
+
+
+def ball(x, y):
+    d, _ = polar(x, y, 256)
+    if d > 104:
+        return (1, 1, 1, 0)
+    if d > 92:
+        return (1, 1, 1, 1 - smooth(102, 104, d))
+    shade = 0.75 + 0.25 * (1 - d / 92)
+    return (shade, shade, shade, 1)
+
+
+def follow(x, y):
+    d, _ = polar(x, y, 256)
+    ring_a = band(d, 117, 122)
+    fill = 0.06 if d < 117 else 0
+    return (1, 1, 1, max(ring_a, fill))
 
 
 def glow(x, y):
@@ -87,24 +116,43 @@ def glow(x, y):
 
 
 def dot(x, y):
-    d, _ = polar(x, y, 64)
-    return (1, 1, 1, 1 if d <= 30 else 0)
+    d, _ = polar(x, y, 128)
+    return (1, 1, 1, 1 - smooth(59, 61, d))
+
+
+def followpoint(x, y):
+    px, py = abs(x - 32), abs(y - 32)
+    dx = max(px - 14, 0)
+    d = math.hypot(dx, py)
+    return (1, 1, 1, 1 - smooth(3, 5, d))
+
+
+def spinner(x, y):
+    d, ang = polar(x, y, 256)
+    outer = band(d, 118, 124)
+    notch = (math.degrees(ang) % 30) < 4
+    inner = band(d, 70, 73) * 0.45
+    if outer > 0.01:
+        return (1, 1, 1, outer * (0.35 if notch else 1))
+    return (1, 1, 1, inner)
 
 
 def ring(x, y):
     d, _ = polar(x, y, 256)
-    return (1, 1, 1, 1 if 112 <= d <= 124 else 0)
+    return (1, 1, 1, band(d, 112, 124))
 
 
 def cursor(x, y):
     d, _ = polar(x, y, 64)
-    if d <= 9:
-        return (1, 1, 1, 1)
-    if d <= 13:
-        return (1, 0.85, 0.95, 1)
-    a = math.exp(-(((d - 13) / 9.0) ** 2)) * 0.8
-    return (1, 0.6, 0.85, a if d < 31 else 0)
+    ring_a = band(d, 19, 24, 0.8)
+    center = 1 - smooth(3, 5, d)
+    glow_a = math.exp(-(((d - 21) / 7.0) ** 2)) * 0.25
+    return (1, 1, 1, max(ring_a, center, glow_a if d < 31 else 0))
 
+
+def trail(x, y):
+    d, _ = polar(x, y, 32)
+    return (1, 1, 1, math.exp(-((d / 7.0) ** 2)) if d < 15 else 0)
 
 def rounded_rect(size, radius, border):
     def shader(x, y):
@@ -142,20 +190,30 @@ def logo(x, y):
 
 def arrow(x, y):
     px, py = x - 32, y - 32
-    t = 7
-    on = abs(abs(py) - (14 - px * 1.0)) < t and -10 <= px <= 16 and abs(py) <= 22
-    return (1, 1, 1, 1 if on else 0)
 
+    def seg(ax, ay, bx, by):
+        vx, vy = bx - ax, by - ay
+        t = min(max(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy), 0), 1)
+        return math.hypot(px - (ax + vx * t), py - (ay + vy * t))
+
+    d = min(seg(-10, -18, 12, 0), seg(12, 0, -10, 18))
+    return (1, 1, 1, 1 - smooth(5, 7, d))
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    save("circle", 128, 128, circle)
-    save("circleoverlay", 128, 128, circle_overlay)
-    save("approach", 128, 128, approach)
+    save("circle", 256, 256, circle)
+    save("circleoverlay", 256, 256, circle_overlay)
+    save("approach", 256, 256, approach)
+    save("ball", 256, 256, ball)
+    save("follow", 256, 256, follow)
     save("glow", 128, 128, glow)
-    save("dot", 64, 64, dot)
+    save("dot", 128, 128, dot)
+    save("followpoint", 64, 64, followpoint)
+    save("spinner", 256, 256, spinner)
     save("ring", 256, 256, ring)
     save("cursor", 64, 64, cursor)
+    save("blank", 32, 32, lambda x, y: (1, 1, 1, 0))
+    save("trail", 32, 32, trail)
     save("note", 64, 64, rounded_rect(64, 12, 0))
     save("noteborder", 64, 64, rounded_rect(64, 12, 5))
     save("lane", 32, 128, lane_grad)

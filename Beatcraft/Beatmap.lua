@@ -238,6 +238,9 @@ local function parseTiming(s)
 				beatLength = bl,
 				meter = tonumber(f[3]) or 4,
 				red = uninherited and bl > 0,
+				kiai = (tonumber(f[8]) or 0) % 2 == 1,
+				sampleSet = tonumber(f[4]) or 0,
+				sampleIndex = tonumber(f[5]) or 0,
 			}
 		end
 	end
@@ -258,6 +261,78 @@ local function parseColors(s)
 		colors = U.COMBO_COLORS
 	end
 	return colors
+end
+
+local function sliderEvents(obj, map, sm, sv)
+	obj.events, obj.tickDistances = {}, {}
+	local tickDist = sm * 100 * sv / math.max(0.1, map.tr or 1)
+	if (map.formatVersion or 14) < 8 then tickDist = tickDist / sv end
+	local minEnd = obj.path.length / obj.span * 10
+	local d = tickDist
+	while d < obj.path.length - minEnd and #obj.tickDistances < 1024 do
+		obj.tickDistances[#obj.tickDistances + 1] = d
+		d = d + tickDist
+	end
+	for span = 0, obj.slides - 1 do
+		for _, dist in ipairs(obj.tickDistances) do
+			local p = dist / obj.path.length
+			local t = obj.t + obj.span * (span + (span % 2 == 0 and p or 1 - p))
+			obj.events[#obj.events + 1] = { t = t, dist = dist, kind = "tick", span = span }
+		end
+		if span < obj.slides - 1 then
+			obj.events[#obj.events + 1] = { t = obj.t + obj.span * (span + 1), dist = span % 2 == 0 and obj.path.length or 0, kind = "repeat", span = span, edge = span + 2 }
+		end
+	end
+	obj.events[#obj.events + 1] = { t = math.max(obj.t + (obj.endTime - obj.t) / 2, obj.endTime - 36), dist = obj.slides % 2 == 1 and obj.path.length or 0, kind = "tail", span = obj.slides - 1, edge = obj.slides + 1 }
+	table.sort(obj.events, function(a, b) return a.t < b.t end)
+end
+
+function Beatmap.ApplyStacking(bm, mods)
+	local objects = bm.objects
+	local ar, _, cs = Beatmap.ModdedStats(bm.map, mods)
+	local threshold = Beatmap.Preempt(ar) * (bm.map.stack or 0.7)
+	local function near(ax, ay, bx, by)
+		return (ax - bx) ^ 2 + (ay - by) ^ 2 < 9
+	end
+	for _, o in ipairs(objects) do o.stack = 0 end
+	for i = #objects, 2, -1 do
+		local current = objects[i]
+		if current.stack == 0 and current.kind ~= "spinner" then
+			for j = i - 1, 1, -1 do
+				local prev = objects[j]
+				if prev.kind ~= "spinner" then
+					local endTime = current.kind == "slider" and prev.t or prev.endTime
+					if current.t - endTime > threshold then break end
+					if current.kind == "circle" and prev.kind == "slider" and near(prev.endX, prev.endY, current.x, current.y) then
+						local offset = current.stack - prev.stack + 1
+						for k = j + 1, i do
+							local o = objects[k]
+							if near(prev.endX, prev.endY, o.x, o.y) then o.stack = o.stack - offset end
+							end
+						break
+					end
+					local x, y = prev.x, prev.y
+					if current.kind == "slider" then x, y = prev.endX or x, prev.endY or y end
+					if near(x, y, current.x, current.y) then
+						prev.stack = current.stack + 1
+						current = prev
+					end
+				end
+			end
+		end
+	end
+	local scale = Beatmap.Radius(cs) / 10
+	for _, o in ipairs(objects) do
+		local dx, dy = -o.stack * scale, -o.stack * scale
+		if mods and mods.hr then dy = -dy end
+		o.x, o.y = o.x + dx, o.y + dy
+		if o.path then
+			for j = 1, #o.path.x do
+				o.path.x[j], o.path.y[j] = o.path.x[j] + dx, o.path.y[j] + dy
+			end
+			o.endX, o.endY = o.endX + dx, o.endY + dy
+		end
+	end
 end
 
 function Beatmap.Parse(map, mods)
@@ -286,8 +361,9 @@ function Beatmap.Parse(map, mods)
 	end
 
 	local flip = mods and mods.hr
-	local sm = map.sm or 1.4
+	local sm = math.max(0.1, map.sm or 1.4)
 	local tpIndex, beatLength, sv = 1, bm.red[1].beatLength, 1
+	local sampleSet, sampleIndex = 1, 0
 	local combo, colorIndex, maxCombo = 0, 0, 0
 	local forceNewCombo = true
 
@@ -302,17 +378,23 @@ function Beatmap.Parse(map, mods)
 				elseif p.beatLength < 0 then
 					sv = U.Clamp(-100 / p.beatLength, 0.1, 10)
 				end
+				if p.sampleSet > 0 then
+					sampleSet = p.sampleSet
+				end
+				sampleIndex = p.sampleIndex
 				tpIndex = tpIndex + 1
 			end
 			if flip then
 				y = 384 - y
 			end
-			local obj = { x = x, y = y, t = t }
+			local obj = { x = x, y = y, t = t, hs = tonumber(f[5]) or 0, set = sampleSet, sidx = sampleIndex }
 			local isSpinner = hasBit(typ, 8)
 			if hasBit(typ, 4) or forceNewCombo or isSpinner then
 				colorIndex = colorIndex + 1 + (floor(typ / 16) % 8)
 				combo = 0
+				obj.newCombo = true
 			end
+			obj.beatLength = beatLength
 			forceNewCombo = isSpinner
 			if hasBit(typ, 2) then
 				local parts = U.Split(f[6] or "", "|")
@@ -328,7 +410,7 @@ function Beatmap.Parse(map, mods)
 					end
 				end
 				obj.kind = "slider"
-				obj.slides = math.max(1, tonumber(f[7]) or 1)
+				obj.slides = U.Clamp(floor(tonumber(f[7]) or 1), 1, 1000)
 				local length = tonumber(f[8])
 				if not length or length <= 0 then
 					length = polyLength(pts)
@@ -338,7 +420,10 @@ function Beatmap.Parse(map, mods)
 				obj.span = math.max(1, obj.path.length / pxPerBeat * beatLength)
 				obj.endTime = t + obj.span * obj.slides
 				obj.endX, obj.endY = Beatmap.SliderBall(obj, obj.endTime)
-				maxCombo = maxCombo + 1 + obj.slides
+				sliderEvents(obj, map, sm, sv)
+				obj.edgeSounds = U.Split(f[9] or "", "|")
+				obj.edgeSets = U.Split(f[10] or "", "|")
+				maxCombo = maxCombo + 1 + #obj.events
 			elseif isSpinner then
 				obj.kind = "spinner"
 				obj.x, obj.y = 256, 192
@@ -360,10 +445,25 @@ function Beatmap.Parse(map, mods)
 		end
 	end
 
+	bm.kiai = {}
+	local kiaiStart
+	for _, p in ipairs(bm.timing) do
+		if p.kiai and not kiaiStart then
+			kiaiStart = p.t
+		elseif not p.kiai and kiaiStart then
+			bm.kiai[#bm.kiai + 1] = { s = kiaiStart, e = p.t }
+			kiaiStart = nil
+		end
+	end
+	if kiaiStart then
+		bm.kiai[#bm.kiai + 1] = { s = kiaiStart, e = math.huge }
+	end
+
+	Beatmap.ApplyStacking(bm, mods)
 	bm.maxCombo = maxCombo
-	local first, last = bm.objects[1], bm.objects[#bm.objects]
-	bm.firstTime = first and first.t or 0
-	bm.lastTime = last and last.endTime or 0
+	bm.firstTime = bm.objects[1] and bm.objects[1].t or 0
+	bm.lastTime = 0
+	for _, o in ipairs(bm.objects) do bm.lastTime = math.max(bm.lastTime, o.endTime) end
 	return bm
 end
 
@@ -392,6 +492,21 @@ function Beatmap.NearestGrid(bm, t, div)
 	local k = floor((t - tp.t) / step + 0.5)
 	local g = tp.t + k * step
 	return g, t - g
+end
+
+function Beatmap.InKiai(bm, t)
+	for _, k in ipairs(bm.kiai) do
+		if t >= k.s and t < k.e then
+			return true
+		end
+	end
+	return false
+end
+
+function Beatmap.BeatPulse(bm, t)
+	local tp = Beatmap.RedAt(bm, t)
+	local phase = ((t - tp.t) % tp.beatLength) / tp.beatLength
+	return 1 - phase
 end
 
 function Beatmap.BPM(bm)

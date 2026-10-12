@@ -163,13 +163,15 @@ function Widget:SetHeight(h)
 	self._h = h
 end
 function Widget:GetWidth()
-	if self._kind == "Frame" and self._allPoints then
-		return 1920
-	end
+	if self._allPoints then return self._allPoints:GetWidth() end
 	return self._w
 end
 function Widget:GetHeight()
+	if self._allPoints then return self._allPoints:GetHeight() end
 	return self._h
+end
+function Widget:SetAllPoints(target)
+	self._allPoints = target or self._parent
 end
 function Widget:SetPoint(...)
 	table.insert(self._points, { ... })
@@ -208,7 +210,7 @@ function Widget:GetScale()
 	return self._scale
 end
 function Widget:GetEffectiveScale()
-	return 1
+	return self._scale * (self._parent and self._parent:GetEffectiveScale() or 1)
 end
 function Widget:SetFrameLevel(l)
 	assert(type(l) == "number", "SetFrameLevel needs a number")

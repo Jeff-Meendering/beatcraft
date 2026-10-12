@@ -2,6 +2,8 @@
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".work", "pydeps"))
+
 import lupa.lua51 as lua51
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -14,7 +16,7 @@ def main():
     g = L.globals()
     g.ADDON_DIR = os.path.join(ROOT, "Beatcraft").replace("\\", "/")
     g.LIB_PATH = lib
-    for name in ("wowmock.lua", "test_addon.lua"):
+    for name in ("wowmock.lua", "test_addon.lua", "test_gameplay.lua"):
         with open(os.path.join(HERE, name), encoding="utf-8") as f:
             L.execute(f.read())
     sys.exit(1 if g.RESULT_FAILED else 0)

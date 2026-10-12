@@ -317,6 +317,28 @@ check(BC.Game.screen == BC.Results, "results screen shown")
 check(BC.db.scores[BC.SongSelect.map.key] and #BC.db.scores[BC.SongSelect.map.key] == 1, "score saved")
 check(#MOCK.addonMessages == 1 and MOCK.addonMessages[1].channel == "GUILD", "personal best shared with the guild")
 
+section("downtime: visuals")
+check(#Play.followPoints > 0, "follow points built (" .. #Play.followPoints .. ")")
+check(#bm.kiai == 0, "test map has no kiai")
+local mode = BC.db.game.bgMode
+BC.Game:OnKey("TAB", true)
+check(BC.db.game.bgMode == "world" and not BC.Game.root.black:IsShown(), "Tab switches to see-through mode")
+BC.Game:OnKey("TAB", true)
+check(BC.db.game.bgMode == "blend", "Tab switches to blend mode")
+BC.Game:OnKey("TAB", true)
+check(BC.db.game.bgMode == mode and BC.Game.root.black:IsShown(), "Tab cycles back to song background")
+
+local G = BC.Game
+G:StartVideo({ offset = 0, fps = 8, cols = 5, rows = 9, fw = 192, fh = 108, size = 1024, sheets = 3, frames = 120, path = "v" })
+G:UpdateVideo(-50)
+check(not G.root.videoTex[1]:IsShown(), "video hidden before its start")
+G:UpdateVideo(46 * 125)
+check(G.videoSheetOf[1] == 2 or G.videoSheetOf[2] == 2, "frame 46 uses sheet 2")
+check(G.videoSheetOf[1] == 3 or G.videoSheetOf[2] == 3, "sheet 3 preloaded")
+G:UpdateVideo(200 * 125)
+check(not G.root.videoTex[1]:IsShown() and not G.root.videoTex[2]:IsShown(), "video hidden after its end")
+G:StopVideo()
+
 section("downtime: no input fails")
 BC.Results:OnKey("`", true)
 check(BC.Game.screen == Play and Play.playing, "retry from results")

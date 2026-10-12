@@ -108,7 +108,7 @@ end
 local cache, cacheOrder = {}, {}
 
 function Library:Parse(map, mods)
-	local key = map.key .. ((mods and mods.hr) and ":hr" or "")
+	local key = map.key .. ((mods and mods.hr) and ":hr" or (mods and mods.ez) and ":ez" or "")
 	if cache[key] then
 		return cache[key]
 	end

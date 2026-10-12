@@ -4,3 +4,5 @@ __pycache__/
 Importer/settings.json
 Import/*
 !Import/PUT .OSZ FILES HERE.txt
+Importer/ffmpeg/
+.work/

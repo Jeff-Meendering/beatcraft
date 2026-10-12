@@ -10,7 +10,7 @@ BC.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 local DEFAULTS = {
 	offset = 0,
 	channel = "Master",
-	hitsound = "tick",
+	hitsound = "map",
 	minimap = { angle = 215, hide = false },
 	mapOffsets = {},
 	scores = {},
@@ -23,9 +23,14 @@ local DEFAULTS = {
 	fights = {},
 	game = {
 		keys = { "Z", "X" },
-		dim = 0.8,
-		hideWorld = true,
+		dim = 0.75,
+		bgMode = "song",
+		video = true,
+		worldDim = 0.5,
 		trail = true,
+		cursorSize = 32,
+		mouseButtons = true,
+		kiaiFlash = false,
 		errorBar = true,
 		keyOverlay = true,
 		mods = {},
@@ -128,6 +133,10 @@ BC:On("ADDON_LOADED", function(_, name)
 	end
 	BeatcraftDB = BeatcraftDB or {}
 	mergeDefaults(BeatcraftDB, DEFAULTS)
+	if (BeatcraftDB.settingsVersion or 0) < 2 then
+		BeatcraftDB.hitsound = "map"
+		BeatcraftDB.settingsVersion = 2
+	end
 	BC.db = BeatcraftDB
 	for _, m in ipairs(modules) do
 		if m.OnInit then

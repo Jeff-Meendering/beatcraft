@@ -14,6 +14,7 @@ function Results:Create(root)
 	local panel = CreateFrame("Frame", nil, screen)
 	panel:SetSize(820, 460)
 	panel:SetPoint("CENTER")
+	panel:SetScale(math.min(1, root:GetWidth() * 0.92 / 820, root:GetHeight() * 0.92 / 460))
 	panel.bg = W.Solid(panel, "BACKGROUND", 0.03, 0.03, 0.05, 0.85)
 	panel.bg:SetAllPoints()
 	W.Border(panel, BC.ACCENT[1], BC.ACCENT[2], BC.ACCENT[3], 0.8)
@@ -34,10 +35,11 @@ function Results:Create(root)
 	self.score:SetFont(W.NUMFONT, 44, "OUTLINE")
 	self.score:SetPoint("TOPLEFT", 240, -96)
 	self.newBest = W.Text(panel, 16, "", "OUTLINE")
-	self.newBest:SetPoint("LEFT", self.score, "RIGHT", 16, 0)
+	self.newBest:SetPoint("TOPLEFT", self.score, "BOTTOMLEFT", 0, -8)
 
 	self.details = W.Text(panel, 16, "", "OUTLINE")
-	self.details:SetPoint("TOPLEFT", self.score, "BOTTOMLEFT", 0, -16)
+	self.details:SetPoint("TOPLEFT", 24, -300)
+	self.details:SetWidth(772)
 	self.details:SetJustifyH("LEFT")
 	self.details:SetSpacing(8)
 
@@ -112,6 +114,8 @@ function Results:OnKey(key, down)
 	if key == "ESCAPE" or key == "ENTER" then
 		BC.Game:Show(BC.SongSelect)
 	elseif key == "`" then
+		BC.Game:Show(BC.Play, self.map, self.mods)
+	elseif key == "GRAVE" then
 		BC.Game:Show(BC.Play, self.map, self.mods)
 	end
 end

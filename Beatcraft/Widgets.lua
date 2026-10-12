@@ -3,7 +3,7 @@ local _, BC = ...
 local W = {}
 BC.Widgets = W
 
-W.FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+W.FONT = "Fonts\\ARIALN.TTF"
 W.NUMFONT = "Fonts\\ARIALN.TTF"
 
 local ACCENT = BC.ACCENT

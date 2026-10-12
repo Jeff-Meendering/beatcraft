@@ -14,11 +14,19 @@ local function raidChanged(rebuildEngine)
 	RM:UpdateVisibility()
 end
 
+local function refreshGame()
+	local Game = BC.Game
+	if Game:IsOpen() and Game.bgContext then
+		Game:ApplyBackground(Game.bgPath, Game.bgContext)
+	end
+end
+
 function Opt:Create()
 	if self.frame then
 		return
 	end
-	local f = W.Panel("BeatcraftOptions", UIParent, 960, 590, "Beatcraft options")
+	local f = W.Panel("BeatcraftOptions", UIParent, 960, 680, "Beatcraft options")
+	f:SetScale(math.min(1, UIParent:GetWidth() * 0.95 / 960, UIParent:GetHeight() * 0.95 / 680))
 	f:SetPoint("CENTER")
 	self.frame = f
 	self.widgets = {}
@@ -57,6 +65,7 @@ function Opt:Create()
 		db.channel = v
 	end, 280))
 	place(L, W.Dropdown(f, "Hitsounds (Downtime Mode)", {
+		{ value = "map", text = "The map's own (tick if it has none)" },
 		{ value = "none", text = "None" },
 		{ value = "tick", text = "Tick" },
 		{ value = "soft", text = "Soft" },
@@ -91,11 +100,30 @@ function Opt:Create()
 		return g.dim
 	end, function(v)
 		g.dim = v
+		refreshGame()
+	end, function(v)
+		return math.floor(v * 100 + 0.5) .. "%"
+	end, 280))
+	place(L, W.Dropdown(f, "Background (Tab while playing)", {
+		{ value = "song", text = "Song background" },
+		{ value = "world", text = "See-through (game world)" },
+		{ value = "blend", text = "Song background over game world" },
+	}, function()
+		return g.bgMode
+	end, function(v)
+		g.bgMode = v
+		refreshGame()
+	end, 280))
+	place(L, W.Slider(f, "Game world dim (see-through modes)", 0, 0.95, 0.05, function()
+		return g.worldDim
+	end, function(v)
+		g.worldDim = v
+		refreshGame()
 	end, function(v)
 		return math.floor(v * 100 + 0.5) .. "%"
 	end, 280))
 	for _, item in ipairs({
-		{ "hideWorld", "Hide the game world behind the playfield" },
+		{ "video", "Play beatmap videos" },
 		{ "trail", "Cursor trail" },
 		{ "errorBar", "Hit error bar" },
 		{ "keyOverlay", "Key overlay" },
@@ -251,6 +279,16 @@ function Opt:Create()
 		BC.RaidMode:SetLocked(not r.locked)
 	end)
 	place(T, move, 30)
+	header(T, "Gameplay appearance")
+	place(T, W.Slider(f, "Cursor size", 20, 64, 2, function()
+		return g.cursorSize
+	end, function(v)
+		g.cursorSize = v
+	end, "%d", 290))
+	for _, item in ipairs({ { "mouseButtons", "Mouse buttons hit notes" }, { "kiaiFlash", "Kiai background flashes" } }) do
+		local key = item[1]
+		place(T, W.Check(f, item[2], function() return g[key] end, function(v) g[key] = v end, 290), 22)
+	end
 
 	f:SetScript("OnShow", function()
 		for _, w in ipairs(self.widgets) do

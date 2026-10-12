@@ -31,7 +31,7 @@ function Tally:Judge(value, err, noCombo)
 		self.miss = self.miss + 1
 	end
 	if value > 0 then
-		self.score = self.score + math.floor(value * (1 + math.max(self.combo - 1, 0) * self.modMult / 25))
+		self.score = self.score + math.floor(value * (1 + math.max(self.combo - 1, 0) / 25) * self.modMult)
 		if not noCombo then
 			self:AddCombo()
 		end

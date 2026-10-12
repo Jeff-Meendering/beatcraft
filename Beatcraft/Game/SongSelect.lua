@@ -37,207 +37,187 @@ end
 function Select:Create(root)
 	local screen = CreateFrame("Frame", nil, root)
 	screen:SetAllPoints()
+	local scale = math.min(root:GetWidth() / 1440, root:GetHeight() / 900)
+	screen:SetScale(scale)
 	screen:Hide()
 	self.screen = screen
-
-	local listW = 460
+	local width, height = root:GetWidth() / scale, root:GetHeight() / scale
+	local listW = math.min(820, width * 0.57)
+	local leftW = width - listW - 70
+	local function label(parent, size, value, point, x, y, w)
+		local t = W.Text(parent, size, value, "OUTLINE")
+		t:SetPoint(point, x, y)
+		t:SetJustifyH("LEFT")
+		if w then t:SetWidth(w); t:SetWordWrap(false) end
+		return t
+	end
+	local top = CreateFrame("Frame", nil, screen)
+	top:SetPoint("TOPLEFT")
+	top:SetPoint("TOPRIGHT")
+	top:SetHeight(150)
+	local bg = W.Solid(top, "BACKGROUND", 0.025, 0.025, 0.045, 0.88)
+	bg:SetAllPoints()
+	local stripe = W.Solid(top, "ARTWORK", ACCENT[1], ACCENT[2], ACCENT[3], 1)
+	stripe:SetPoint("BOTTOMLEFT")
+	stripe:SetPoint("BOTTOMRIGHT")
+	stripe:SetHeight(2)
+	self.title = label(top, 30, "Select a beatmap", "TOPLEFT", 30, -20, width * 0.58)
+	self.artist = label(top, 16, "", "TOPLEFT", 32, -58, width * 0.58)
+	self.mapper = label(top, 13, "", "TOPLEFT", 32, -83, width * 0.58)
+	self.mapper:SetTextColor(0.72, 0.75, 0.82)
+	self.stats = label(top, 13, "", "TOPLEFT", 32, -108, width * 0.72)
+	self.stats:SetTextColor(0.8, 0.83, 0.9)
+	label(top, 13, "BEATCRAFT  /  osu!standard", "TOPRIGHT", -30, -24):SetTextColor(1, 0.65, 0.8)
 	local right = CreateFrame("Frame", nil, screen)
-	right:SetPoint("TOPRIGHT", -24, -24)
-	right:SetPoint("BOTTOMRIGHT", -24, 70)
+	right:SetPoint("TOPRIGHT", -20, -170)
+	right:SetPoint("BOTTOMRIGHT", -20, 130)
 	right:SetWidth(listW)
-	right.bg = W.Solid(right, "BACKGROUND", 0.03, 0.03, 0.05, 0.75)
-	right.bg:SetAllPoints()
-	W.Border(right)
-
-	local search = W.EditBox(right, listW - 20, 26)
-	search:SetPoint("TOP", 0, -10)
-	search:SetScript("OnTextChanged", function()
-		Select:ApplySearch()
-	end)
-	search:SetScript("OnEnterPressed", function(e)
-		e:ClearFocus()
-		Select:PlaySelected()
-	end)
+	self.listHolder = right
+	local search = W.EditBox(right, listW - 40, 30)
+	search:SetPoint("TOPRIGHT", -10, 0)
+	search:SetScript("OnTextChanged", function() Select:ApplySearch() end)
+	search:SetScript("OnEnterPressed", function(e) e:ClearFocus(); Select:PlaySelected() end)
 	search:SetScript("OnEscapePressed", function(e)
-		if e:GetText() ~= "" then
-			e:SetText("")
-		else
-			e:ClearFocus()
-		end
+		if e:GetText() ~= "" then e:SetText("") else e:ClearFocus() end
 	end)
-	search:SetScript("OnKeyDown", function(e, key)
-		if key == "UP" or key == "DOWN" then
-			Select:Move(key == "UP" and -1 or 1)
-		end
+	search:SetScript("OnKeyDown", function(_, key)
+		if key == "UP" or key == "DOWN" then Select:MoveDiff(key == "UP" and -1 or 1) end
 	end)
 	self.search = search
-	local placeholder = W.Text(search, 12, "Search (just start typing)")
-	placeholder:SetPoint("LEFT", 8, 0)
-	placeholder:SetTextColor(0.5, 0.5, 0.55)
-	search:HookScript("OnTextChanged", function(e)
-		placeholder:SetShown(e:GetText() == "")
-	end)
-
-	local listH = math.max(200, (UIParent:GetHeight() or 768) - 24 - 70 - 46 - 30)
-	self.listHolder = right
+	local placeholder = label(search, 13, "Type to search your beatmaps...", "LEFT", 10, 0)
+	placeholder:SetTextColor(0.55, 0.59, 0.68)
+	search:HookScript("OnTextChanged", function(e) placeholder:SetShown(e:GetText() == "") end)
+	self.count = label(right, 12, "", "TOPRIGHT", -12, -38)
+	self.count:SetTextColor(0.68, 0.71, 0.79)
 	local function createRow(parent)
 		local row = CreateFrame("Button", nil, parent)
-		row.bg = W.Solid(row, "BACKGROUND", 0.1, 0.1, 0.14, 0.9)
-		row.bg:SetPoint("TOPLEFT", 0, -2)
-		row.bg:SetPoint("BOTTOMRIGHT", 0, 2)
-		row.stripe = W.Solid(row, "ARTWORK", ACCENT[1], ACCENT[2], ACCENT[3], 1)
-		row.stripe:SetPoint("TOPLEFT", 0, -2)
-		row.stripe:SetPoint("BOTTOMLEFT", 0, 2)
+		row.bg = W.Solid(row, "BACKGROUND", 0.08, 0.12, 0.2, 0.95)
+		row.bg:SetPoint("TOPLEFT", 0, -3)
+		row.bg:SetPoint("BOTTOMRIGHT", 0, 3)
+		row.stripe = W.Solid(row, "ARTWORK", 1, 1, 1, 1)
+		row.stripe:SetPoint("TOPLEFT", 0, -3)
+		row.stripe:SetPoint("BOTTOMLEFT", 0, 3)
 		row.stripe:SetWidth(4)
-		local hl = row:CreateTexture(nil, "HIGHLIGHT")
+		row.cover = row:CreateTexture(nil, "ARTWORK")
+		row.cover:SetSize(90, 60)
+		row.cover:SetPoint("LEFT", 8, 0)
+		row.cover:SetTexCoord(0.125, 0.875, 0, 1)
+		row.cover:SetAlpha(0.6)
+		row.icon = row:CreateTexture(nil, "OVERLAY")
+		row.icon:SetTexture(BC.MEDIA .. "ring")
+		row.icon:SetSize(28, 28)
+		row.icon:SetPoint("LEFT", 108, 0)
+		row.title = label(row, 18, "", "TOPLEFT", 150, -10)
+		row.artist = label(row, 12, "", "TOPLEFT", 150, -35)
+		row.artist:SetTextColor(0.73, 0.78, 0.88)
+		row.stars = label(row, 13, "", "RIGHT", -16, 7)
+		row.flag = label(row, 10, "", "RIGHT", -16, -14)
+		local hl = W.Solid(row, "HIGHLIGHT", 1, 1, 1, 0.1)
 		hl:SetAllPoints(row.bg)
-		hl:SetColorTexture(1, 1, 1, 0.06)
-		row.title = W.Text(row, 14, "")
-		row.title:SetPoint("TOPLEFT", 12, -8)
-		row.title:SetPoint("RIGHT", -70, 0)
-		row.title:SetJustifyH("LEFT")
-		row.title:SetWordWrap(false)
-		row.artist = W.Text(row, 11, "")
-		row.artist:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -3)
-		row.artist:SetPoint("RIGHT", -70, 0)
-		row.artist:SetJustifyH("LEFT")
-		row.artist:SetWordWrap(false)
-		row.artist:SetTextColor(0.75, 0.75, 0.8)
-		row.stars = W.Text(row, 11, "")
-		row.stars:SetPoint("RIGHT", -10, 6)
-		row.flag = W.Text(row, 10, "")
-		row.flag:SetPoint("RIGHT", -10, -9)
 		row:RegisterForClicks("LeftButtonUp")
 		row:SetScript("OnClick", function(self)
-			if Select.song == self.song then
-				Select:PlaySelected()
-			else
-				Select:SelectSong(self.song)
-			end
+			if self.entry.map then Select:SelectMap(self.entry.map) else Select:SelectSong(self.entry.song) end
+		end)
+		row:SetScript("OnDoubleClick", function(self)
+			if self.entry.map then Select:SelectMap(self.entry.map) end
+			Select:PlaySelected()
 		end)
 		return row
 	end
-	local function updateRow(row, song)
-		row.song = song
-		row.title:SetText(song.title or "?")
-		row.artist:SetText((song.artist or "") .. "  //  " .. (song.creator or ""))
-		local lo, hi = song.maps[1].stars, song.maps[#song.maps].stars
-		row.stars:SetText(#song.maps > 1 and (starText(lo) .. " - " .. starText(hi)) or starText(lo))
-		row.stars:SetTextColor(starColor(hi))
-		row.flag:SetText(BC.db.playlist[song.id] and "|cffff66aaraid playlist|r" or "")
-		local selected = song == Select.song
-		row.stripe:SetShown(selected)
-		if selected then
-			row.bg:SetColorTexture(0.22, 0.12, 0.18, 0.95)
-		else
-			row.bg:SetColorTexture(0.1, 0.1, 0.14, 0.9)
-		end
+	local function updateRow(row, entry, index)
+		row.entry = entry
+		local song, map = entry.song, entry.map
+		local selected = map and map == Select.map
+		local indent = selected and 0 or map and 34 or 68
+		row:ClearAllPoints()
+		row:SetPoint("TOPLEFT", indent, -(index - Select.list.offset - 1) * 72)
+		row:SetWidth(listW - indent - 12)
+		row.cover:SetTexture(song.bg)
+		row.cover:SetShown(song.bg ~= nil)
+		row.title:SetWidth(listW - indent - 265)
+		row.artist:SetWidth(listW - indent - 265)
+		local stars = map and map.stars or song.maps[#song.maps].stars
+		local r, g, b = starColor(stars)
+		row.icon:SetVertexColor(r, g, b)
+		row.stripe:SetColorTexture(r, g, b, 1)
+		row.title:SetText(map and (map.version or "Normal") or (song.title or "?"))
+		row.artist:SetText(map and ((song.title or "") .. "  /  " .. (song.creator or "")) or (song.artist or ""))
+		row.stars:SetText(map and string.format("~%.1f *", stars) or #song.maps .. " difficulties")
+		row.stars:SetTextColor(r, g, b)
+		row.flag:SetText(selected and "SELECTED" or BC.db.playlist[song.id] and "RAID PLAYLIST" or "")
+		row.flag:SetTextColor(1, 0.75, 0.85)
+		if selected then row.bg:SetColorTexture(0.6, 0.19, 0.37, 0.96)
+		elseif map then row.bg:SetColorTexture(0.13, 0.22, 0.35, 0.94)
+		else row.bg:SetColorTexture(0.07, 0.1, 0.17, 0.9) end
 	end
-	self.list = W.ScrollList(right, listW - 20, listH, 46, createRow, updateRow)
-	self.list:SetPoint("TOP", search, "BOTTOM", 0, -10)
-	self.count = W.Text(right, 11, "")
-	self.count:SetPoint("BOTTOMLEFT", 10, 8)
-	self.count:SetTextColor(0.6, 0.6, 0.65)
-
+	self.list = W.ScrollList(right, listW, height - 368, 72, createRow, updateRow)
+	self.list:SetPoint("TOPRIGHT", 0, -64)
 	local left = CreateFrame("Frame", nil, screen)
-	left:SetPoint("TOPLEFT", 24, -24)
-	left:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", -24, 0)
+	left:SetPoint("TOPLEFT", 30, -182)
+	left:SetSize(leftW, height - 320)
 	self.left = left
-
-	local logo = left:CreateTexture(nil, "ARTWORK")
-	logo:SetTexture(BC.MEDIA .. "logo")
-	logo:SetSize(40, 40)
-	logo:SetPoint("TOPLEFT")
-	local brand = W.Text(left, 20, "Beatcraft", "OUTLINE")
-	brand:SetPoint("LEFT", logo, "RIGHT", 10, 0)
-
-	self.title = W.Text(left, 30, "", "OUTLINE")
-	self.title:SetPoint("TOPLEFT", logo, "BOTTOMLEFT", 0, -30)
-	self.title:SetPoint("RIGHT")
-	self.title:SetJustifyH("LEFT")
-	self.title:SetWordWrap(false)
-	self.artist = W.Text(left, 18, "", "OUTLINE")
-	self.artist:SetPoint("TOPLEFT", self.title, "BOTTOMLEFT", 0, -6)
-	self.artist:SetTextColor(0.85, 0.85, 0.9)
-	self.mapper = W.Text(left, 12, "", "OUTLINE")
-	self.mapper:SetPoint("TOPLEFT", self.artist, "BOTTOMLEFT", 0, -6)
-	self.mapper:SetTextColor(0.7, 0.7, 0.75)
-
-	self.diffButtons = {}
-	for i = 1, 10 do
-		local b = W.Button(left, "", 120, 40, function(btn)
-			Select:SelectMap(btn.map)
-		end)
-		b.text:ClearAllPoints()
-		b.text:SetPoint("TOP", 0, -6)
-		b.stars = W.Text(b, 11, "")
-		b.stars:SetPoint("BOTTOM", 0, 6)
-		local col = (i - 1) % 5
-		local rowI = math.floor((i - 1) / 5)
-		b:SetPoint("TOPLEFT", self.mapper, "BOTTOMLEFT", col * 126, -24 - rowI * 46)
-		self.diffButtons[i] = b
-	end
-
-	self.stats = W.Text(left, 14, "", "OUTLINE")
-	self.stats:SetPoint("TOPLEFT", self.mapper, "BOTTOMLEFT", 0, -130)
-	self.stats:SetJustifyH("LEFT")
-	self.stats:SetSpacing(4)
-
-	local modLabel = W.Text(left, 12, "Mods", "OUTLINE")
-	modLabel:SetPoint("TOPLEFT", self.stats, "BOTTOMLEFT", 0, -20)
+	self.cover = left:CreateTexture(nil, "BACKGROUND")
+	self.cover:SetPoint("TOPLEFT")
+	self.cover:SetSize(leftW, 150)
+	self.cover:SetTexCoord(0, 1, 0.2, 0.8)
+	self.cover:SetAlpha(0.55)
+	local coverDim = W.Solid(left, "BORDER", 0.025, 0.025, 0.045, 0.3)
+	coverDim:SetAllPoints(self.cover)
+	self.difficulty = label(left, 24, "", "TOPLEFT", 18, -30, leftW - 36)
+	self.rating = label(left, 16, "", "TOPLEFT", 18, -68, leftW - 36)
+	self.detail = label(left, 13, "", "TOPLEFT", 18, -104, leftW - 36)
+	label(left, 18, "LOCAL RANKING", "TOPLEFT", 0, -178):SetTextColor(0.85, 0.88, 0.95)
+	local divider = W.Solid(left, "ARTWORK", 1, 1, 1, 0.13)
+	divider:SetPoint("TOPLEFT", 0, -206)
+	divider:SetSize(leftW, 1)
+	self.best = label(left, 15, "", "TOPLEFT", 0, -224, leftW)
+	self.best:SetWordWrap(true)
+	self.best:SetSpacing(10)
+	self.guild = label(left, 13, "", "BOTTOMLEFT", 0, 8, leftW)
+	self.guild:SetWordWrap(true)
+	self.guild:SetSpacing(4)
+	self.guild:SetTextColor(0.63, 0.68, 0.78)
+	local bar = CreateFrame("Frame", nil, screen)
+	bar:SetPoint("BOTTOMLEFT")
+	bar:SetPoint("BOTTOMRIGHT")
+	bar:SetHeight(110)
+	local barBg = W.Solid(bar, "BACKGROUND", 0.025, 0.025, 0.045, 0.95)
+	barBg:SetAllPoints()
+	local back = W.Button(bar, "<  BACK", 130, 48, function() BC.Game:Close() end, true)
+	back:SetPoint("BOTTOMLEFT", 24, 22)
 	self.modButtons = {}
 	for i, m in ipairs(MODS) do
-		local b = W.Button(left, m.label, 52, 28, function(btn)
-			Select:ToggleMod(m.key)
-		end)
-		b:SetPoint("TOPLEFT", modLabel, "BOTTOMLEFT", (i - 1) * 58, -6)
+		local b = W.Button(bar, m.label, 48, 44, function() Select:ToggleMod(m.key) end)
+		b:SetPoint("BOTTOMLEFT", 188 + (i - 1) * 54, 24)
 		W.Tooltip(b, m.label, m.tip)
 		self.modButtons[m.key] = b
 	end
-
-	self.best = W.Text(left, 13, "", "OUTLINE")
-	self.best:SetPoint("TOPLEFT", modLabel, "BOTTOMLEFT", 0, -50)
-	self.best:SetJustifyH("LEFT")
-	self.best:SetSpacing(3)
-	self.guild = W.Text(left, 12, "", "OUTLINE")
-	self.guild:SetPoint("TOPLEFT", self.best, "BOTTOMLEFT", 0, -14)
-	self.guild:SetJustifyH("LEFT")
-	self.guild:SetSpacing(3)
-
-	local bar = CreateFrame("Frame", nil, screen)
-	bar:SetPoint("BOTTOMLEFT", 24, 18)
-	bar:SetPoint("BOTTOMRIGHT", -24, 18)
-	bar:SetHeight(40)
-	self.playButton = W.Button(bar, "PLAY", 180, 40, function()
-		Select:PlaySelected()
-	end, true)
-	self.playButton.text:SetFont(W.FONT, 16, "OUTLINE")
-	self.playButton:SetPoint("RIGHT")
-	local random = W.Button(bar, "Random (F2)", 120, 40, function()
-		Select:RandomSong()
-	end)
-	random:SetPoint("RIGHT", self.playButton, "LEFT", -10, 0)
-	self.playlistButton = W.Button(bar, "", 170, 40, function()
-		Select:TogglePlaylist()
-	end)
-	self.playlistButton:SetPoint("RIGHT", random, "LEFT", -10, 0)
-	W.Tooltip(self.playlistButton, "Raid playlist", "Songs in the raid playlist play during pulls in Raid Mode (when the playlist option is selected).")
-	local back = W.Button(bar, "Close (Esc)", 120, 40, function()
-		BC.Game:Close()
-	end)
-	back:SetPoint("LEFT")
-	local options = W.Button(bar, "Options", 100, 40, function()
-		BC.Options:Open()
-	end)
-	options:SetPoint("LEFT", back, "RIGHT", 10, 0)
-	local hint = W.Text(bar, 11, "Enter play   Up/Down song   Left/Right difficulty   F2 random   type to search", "OUTLINE")
-	hint:SetPoint("LEFT", options, "RIGHT", 16, 0)
-	hint:SetTextColor(0.65, 0.65, 0.7)
-
-	self.empty = W.Text(screen, 16, "", "OUTLINE")
-	self.empty:SetPoint("CENTER", left, "CENTER")
-	self.empty:SetWidth(520)
-	self.empty:SetSpacing(6)
+	label(bar, 11, "MODS", "BOTTOMLEFT", 188, 76):SetTextColor(0.6, 0.65, 0.75)
+	local random = W.Button(bar, "RANDOM  F2", 120, 44, function() Select:RandomSong() end)
+	random:SetPoint("BOTTOMLEFT", 428, 24)
+	local options = W.Button(bar, "OPTIONS", 100, 44, function() BC.Options:Open() end)
+	options:SetPoint("LEFT", random, "RIGHT", 8, 0)
+	self.playlistButton = W.Button(bar, "RAID PLAYLIST", 130, 44, function() Select:TogglePlaylist() end)
+	self.playlistButton:SetPoint("LEFT", options, "RIGHT", 8, 0)
+	label(bar, 11, "Enter play  /  arrows browse  /  type to search", "BOTTOM", 40, 8):SetTextColor(0.5, 0.55, 0.65)
+	self.playButton = CreateFrame("Button", nil, bar)
+	self.playButton:SetSize(132, 132)
+	self.playButton:SetPoint("BOTTOMRIGHT", -36, 8)
+	self.playButton.ring = self.playButton:CreateTexture(nil, "BACKGROUND")
+	self.playButton.ring:SetTexture(BC.MEDIA .. "circle")
+	self.playButton.ring:SetAllPoints()
+	self.playButton.ring:SetVertexColor(1, 0.35, 0.62)
+	local rim = self.playButton:CreateTexture(nil, "BORDER")
+	rim:SetTexture(BC.MEDIA .. "circleoverlay")
+	rim:SetAllPoints()
+	local playText = W.Text(self.playButton, 28, "PLAY", "OUTLINE")
+	playText:SetPoint("CENTER", 0, 3)
+	self.playButton:SetScript("OnClick", function() Select:PlaySelected() end)
+	self.playButton:SetScript("OnEnter", function(b) b.ring:SetVertexColor(1, 0.55, 0.75) end)
+	self.playButton:SetScript("OnLeave", function(b) b.ring:SetVertexColor(1, 0.35, 0.62) end)
+	self.empty = label(screen, 18, "", "CENTER", 0, 30, 500)
+	self.empty:SetWordWrap(true)
+	self.empty:SetSpacing(8)
 end
 
 function Select:Open()
@@ -252,14 +232,13 @@ function Select:Enter()
 	self.mods = self.mods or U.CopyTable(BC.db.game.mods)
 
 	local ok, err = Library:Load()
-	BC.Game:SetDim(BC.db.game.dim * 0.8)
 	if not ok or Library:Count() == 0 then
 		self.left:Hide()
 		self.empty:SetText(ok and "Your song library is empty.\n\nDrop .osz files into the Import folder (or point it at your osu! Songs folder) and run 'Beatcraft Manager.bat', then restart WoW." or err)
 		self.empty:Show()
 		self.list:SetData({})
 		self.count:SetText("0 songs")
-		BC.Game:SetBackground(nil)
+		BC.Game:ApplyBackground(nil, "select")
 		self.playButton:Disable()
 		return
 	end
@@ -273,6 +252,7 @@ function Select:Enter()
 end
 
 function Select:Leave()
+	self.previewToken = (self.previewToken or 0) + 1
 	self.search:ClearFocus()
 	Clock:Stop()
 	self.screen:Hide()
@@ -283,20 +263,13 @@ function Select:ApplySearch()
 		return
 	end
 	self.results = Library:Search(self.search:GetText())
-	self.list:SetData(self.results)
-	self.count:SetText(#self.results .. " / " .. Library:Count() .. " songs")
+	self:RefreshDiffs()
 	self:EnsureVisible()
 end
 
 function Select:EnsureVisible()
-	if not self.results or not self.song then
-		return
-	end
-	for i, s in ipairs(self.results) do
-		if s == self.song then
-			self.list:ScrollTo(i)
-			return
-		end
+	if self.selectedIndex then
+		self.list.offset = U.Clamp(self.selectedIndex - math.ceil(self.list.numRows / 2), 0, math.max(0, #self.list.data - self.list.numRows))
 	end
 	self.list:Refresh()
 end
@@ -314,29 +287,33 @@ function Select:SelectSong(song, mapKey)
 			map = m
 		end
 	end
+	self.cover:SetTexture(song.bg)
 	self.title:SetText(song.title or "?")
 	self.artist:SetText(song.artist or "")
 	self.mapper:SetText("mapped by " .. (song.creator or "?") .. ((song.source and song.source ~= "") and ("  -  " .. song.source) or ""))
-	for i, b in ipairs(self.diffButtons) do
-		local m = song.maps[i]
-		if m then
-			b.map = m
-			b:SetLabel(m.version or "?")
-			b.stars:SetText(starText(m.stars))
-			b.stars:SetTextColor(starColor(m.stars))
-			b:Show()
-		else
-			b:Hide()
-		end
-	end
-	BC.Game:SetBackground(song.bg)
+	BC.Game:ApplyBackground(song.bg, "select")
 	self:SelectMap(map)
 	self:EnsureVisible()
-	self.playlistButton:SetLabel(BC.db.playlist[song.id] and "In raid playlist" or "Add to raid playlist")
+	self.playlistButton:SetLabel(BC.db.playlist[song.id] and "IN RAID PLAYLIST" or "RAID PLAYLIST")
 	self.playlistButton:SetActive(BC.db.playlist[song.id] and true or false)
-	if changed then
-		self:SchedulePreview(song)
+	if changed or not Clock.playing then self:SchedulePreview(song) end
+end
+
+function Select:RefreshDiffs()
+	local entries, maps = {}, 0
+	self.selectedIndex = nil
+	for _, song in ipairs(self.results or {}) do
+		entries[#entries + 1] = { song = song }
+		maps = maps + #song.maps
+		if song == self.song then
+			for _, map in ipairs(song.maps) do
+				entries[#entries + 1] = { song = song, map = map }
+				if map == self.map then self.selectedIndex = #entries end
+			end
+		end
 	end
+	self.list:SetData(entries)
+	self.count:SetText(string.format("%d songs  /  %d difficulties", #(self.results or {}), maps))
 end
 
 function Select:SchedulePreview(song)
@@ -356,9 +333,8 @@ function Select:SelectMap(map)
 	end
 	self.map = map
 	BC.db.lastMap = map.key
-	for _, b in ipairs(self.diffButtons) do
-		b:SetActive(b.map == map)
-	end
+	self:RefreshDiffs()
+	self:EnsureVisible()
 	self:RefreshStats()
 end
 
@@ -372,12 +348,16 @@ function Select:RefreshStats()
 		string.format("Length |cffffffff%s|r     BPM |cffffffff%d|r     Objects |cffffffff%d|r", U.FormatTime(map.len), math.floor((map.bpm or 0) + 0.5), map.n or 0),
 		string.format("CS |cffffffff%.1f|r   AR |cffffffff%.1f|r   OD |cffffffff%.1f|r   HP |cffffffff%.1f|r   Stars |cffffffff~%.1f|r", cs, ar, od, hp, map.stars),
 	}
-	self.stats:SetText(table.concat(lines, "\n"))
+	self.stats:SetText(table.concat(lines, "   /   "))
+	self.difficulty:SetText(map.version or "Normal")
+	self.rating:SetText(string.format("~%.1f stars", map.stars))
+	self.rating:SetTextColor(starColor(map.stars))
+	self.detail:SetText("osu!standard  /  " .. U.FormatTime(map.len) .. "  /  " .. math.floor(map.bpm or 0) .. " BPM")
 	self.stats:SetTextColor(0.75, 0.75, 0.8)
 
 	local scores = BC.db.scores[map.key]
 	if scores and #scores > 0 then
-		local out = { "|cff" .. BC.ACCENT_HEX .. "Your best|r" }
+		local out = {}
 		for i = 1, math.min(5, #scores) do
 			local s = scores[i]
 			local c = U.GRADE_COLORS[s.grade] or U.GRADE_COLORS.D
@@ -385,9 +365,9 @@ function Select:RefreshStats()
 		end
 		self.best:SetText(table.concat(out, "\n"))
 	else
-		self.best:SetText("|cff888888No scores yet on this difficulty.|r")
+		self.best:SetText("|cffd5dbeaNo records set!|r\n|cff81899bComplete this difficulty to set your first score.|r")
 	end
-	self.guild:SetText(BC.Guild:FormatTop(map.key, 5))
+	self.guild:SetText(BC.Guild:FormatTop(map.key, 3))
 end
 
 function Select:ToggleMod(key)
@@ -458,6 +438,7 @@ function Select:PlaySelected()
 	if not self.map then
 		return
 	end
+	self.search:ClearFocus()
 	BC.Game:Show(BC.Play, self.map, U.CopyTable(self.mods))
 end
 
