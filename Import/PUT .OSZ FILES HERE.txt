@@ -1,0 +1,3 @@
+Put osu! beatmap files (.osz) in this folder, then run "Beatcraft Manager.bat" and choose option 2.
+Imported files are moved into the "Imported" subfolder.
+Restart WoW completely afterwards so it can find the new songs.
