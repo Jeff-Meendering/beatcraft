@@ -17,6 +17,8 @@ The manager can download ffmpeg to also import beatmap videos and hitsounds.
 
 `/beat` menu · `/beat play` · `/beat raid` · `/beat editor` · `/beat calibrate` · `/beat unlock` · Tab toggles the see-through background
 
+The default background lightly blends the song image or video over the WoW world at 85% opacity, with the interface at 95% opacity. Tab cycles through blended, song, and world-only backgrounds; your selection is saved. Options includes a song/video opacity slider.
+
 During play: Z/X or mouse buttons hit notes, Escape pauses, Enter restarts a paused song, Escape again returns to song select, and ` retries. Minus/equals adjust the map's audio offset. WoW cannot seek audio, so paused songs restart to preserve sync.
 
 Options include cursor size, mouse input, video, background dim, and optional kiai flashes. Song select expands difficulty cards in the song browser; double-click a difficulty to play. Slider ticks, repeats, and tails contribute to combo; circle stacks follow the map's stack leniency. Scores use Beatcraft's scoring model rather than matching osu! leaderboards.

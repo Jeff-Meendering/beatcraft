@@ -24,7 +24,9 @@ local DEFAULTS = {
 	game = {
 		keys = { "Z", "X" },
 		dim = 0.75,
-		bgMode = "song",
+		bgMode = "blend",
+		bgOpacity = 0.85,
+		interfaceOpacity = 0.95,
 		video = true,
 		worldDim = 0.5,
 		trail = true,
@@ -136,6 +138,12 @@ BC:On("ADDON_LOADED", function(_, name)
 	if (BeatcraftDB.settingsVersion or 0) < 2 then
 		BeatcraftDB.hitsound = "map"
 		BeatcraftDB.settingsVersion = 2
+	end
+	if (BeatcraftDB.settingsVersion or 0) < 4 then
+		BeatcraftDB.game.bgMode = "blend"
+		BeatcraftDB.game.bgOpacity = 0.85
+		BeatcraftDB.game.interfaceOpacity = 0.95
+		BeatcraftDB.settingsVersion = 4
 	end
 	BC.db = BeatcraftDB
 	for _, m in ipairs(modules) do

@@ -25,6 +25,7 @@ MOCK.FireEvent("ADDON_LOADED", "Beatcraft")
 MOCK.FireEvent("PLAYER_LOGIN")
 MOCK.FireEvent("SPELLS_CHANGED")
 check(BC.db ~= nil, "saved variables initialised")
+check(BC.db.game.bgMode == "blend", "lightly transparent song and video background is the default")
 check(BC.Engine.class == "WARRIOR" and BC.Engine.tree == 1, "spec detected as Arms (got " .. tostring(BC.Engine.tree) .. ")")
 check(#BC.Engine.lanes == 7, "7 lanes for the mocked Arms warrior (got " .. #BC.Engine.lanes .. ")")
 check(not BC.Engine.freestyle, "not freestyle")
@@ -322,22 +323,31 @@ check(#Play.followPoints > 0, "follow points built (" .. #Play.followPoints .. "
 check(#bm.kiai == 0, "test map has no kiai")
 local mode = BC.db.game.bgMode
 BC.Game:OnKey("TAB", true)
-check(BC.db.game.bgMode == "world" and not BC.Game.root.black:IsShown(), "Tab switches to see-through mode")
+check(BC.db.game.bgMode == "song" and BC.Game.root.black:IsShown(), "Tab switches to song background")
 BC.Game:OnKey("TAB", true)
-check(BC.db.game.bgMode == "blend", "Tab switches to blend mode")
+check(BC.db.game.bgMode == "world" and not BC.Game.root.black:IsShown(), "Tab switches to world-only background")
 BC.Game:OnKey("TAB", true)
-check(BC.db.game.bgMode == mode and BC.Game.root.black:IsShown(), "Tab cycles back to song background")
+check(BC.db.game.bgMode == mode and not BC.Game.root.black:IsShown(), "Tab cycles back to transparent video mode")
 
 local G = BC.Game
 G:StartVideo({ offset = 0, fps = 8, cols = 5, rows = 9, fw = 192, fh = 108, size = 1024, sheets = 3, frames = 120, path = "v" })
 G:UpdateVideo(-50)
 check(not G.root.videoTex[1]:IsShown(), "video hidden before its start")
 G:UpdateVideo(46 * 125)
+local visibleVideo = G.root.videoTex[1]:GetAlpha() > 0 and G.root.videoTex[1] or G.root.videoTex[2]
+check(visibleVideo:IsShown() and visibleVideo:GetAlpha() == 0.85, "video remains visible with light transparency")
+check(not G.root.bgImage:IsShown(), "song background does not block transparency behind video")
+BC.db.game.bgMode = "world"
+G:UpdateVideo(46 * 125)
+check(not G.root.videoTex[1]:IsShown() and not G.root.videoTex[2]:IsShown(), "world-only mode hides video")
+BC.db.game.bgMode = "song"
+G:UpdateVideo(46 * 125)
 check(G.videoSheetOf[1] == 2 or G.videoSheetOf[2] == 2, "frame 46 uses sheet 2")
 check(G.videoSheetOf[1] == 3 or G.videoSheetOf[2] == 3, "sheet 3 preloaded")
 G:UpdateVideo(200 * 125)
 check(not G.root.videoTex[1]:IsShown() and not G.root.videoTex[2]:IsShown(), "video hidden after its end")
 G:StopVideo()
+BC.db.game.bgMode = mode
 
 section("downtime: no input fails")
 BC.Results:OnKey("`", true)

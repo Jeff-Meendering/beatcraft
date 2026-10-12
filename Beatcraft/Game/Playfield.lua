@@ -31,6 +31,7 @@ function Game:Create()
 	end
 	local root = CreateFrame("Frame", "BeatcraftGame", UIParent)
 	root:SetAllPoints(UIParent)
+	root:SetAlpha(BC.db.game.interfaceOpacity or 0.95)
 	root:SetFrameStrata("FULLSCREEN_DIALOG")
 	root:EnableMouse(true)
 	root:EnableMouseWheel(true)
@@ -147,7 +148,7 @@ function Game:ApplyBackground(path, context)
 		self.dimTarget = g.worldDim * 0.7
 		if path then
 			root.bgImage:SetTexture(path)
-			root.bgImage:SetAlpha(0.45)
+			root.bgImage:SetAlpha(g.bgOpacity or 0.85)
 			root.bgImage:Show()
 		else
 			root.bgImage:Hide()
@@ -164,6 +165,7 @@ function Game:ApplyBackground(path, context)
 		end
 	end
 	root.flash:SetAlpha(0)
+	if self.videoVisible and mode ~= "world" then root.bgImage:Hide() end
 	if context == "play" then
 		self.dimCur = self.dimTarget
 		root.dim:SetAlpha(self.dimCur)
@@ -185,6 +187,7 @@ end
 
 function Game:StartVideo(video)
 	self.video = BC.db.game.video and video or nil
+	self.videoVisible = false
 	self.videoSheetOf = {}
 	for _, tex in ipairs(self.root.videoTex) do
 		tex:Hide()
@@ -193,9 +196,11 @@ end
 
 function Game:StopVideo()
 	self.video = nil
+	self.videoVisible = false
 	for _, tex in ipairs(self.root.videoTex) do
 		tex:Hide()
 	end
+	self.root.bgImage:SetShown(self.bgPath ~= nil and BC.db.game.bgMode ~= "world")
 end
 
 function Game:UpdateVideo(t)
@@ -204,6 +209,8 @@ function Game:UpdateVideo(t)
 	local mode = BC.db.game.bgMode
 	local frame = v and floor((t - v.offset) * v.fps / 1000) or -1
 	if not v or mode == "world" or frame < 0 or frame >= v.frames then
+		self.videoVisible = false
+		self.root.bgImage:SetShown(self.bgPath ~= nil and mode ~= "world")
 		texs[1]:Hide()
 		texs[2]:Hide()
 		return
@@ -211,6 +218,8 @@ function Game:UpdateVideo(t)
 	local per = v.cols * v.rows
 	local sheet = floor(frame / per) + 1
 	if sheet > v.sheets then
+		self.videoVisible = false
+		self.root.bgImage:SetShown(self.bgPath ~= nil and mode ~= "world")
 		texs[1]:Hide()
 		texs[2]:Hide()
 		return
@@ -237,7 +246,9 @@ function Game:UpdateVideo(t)
 	local cropY = frameAspect < screenAspect and (1 - frameAspect / screenAspect) / 2 or 0
 	local du, dv = (v.fw - 1) / v.size, (v.fh - 1) / v.size
 	tex:SetTexCoord(u0 + du * cropX, u0 + du * (1 - cropX), v0 + dv * cropY, v0 + dv * (1 - cropY))
-	tex:SetAlpha(mode == "blend" and 0.45 or 1)
+	tex:SetAlpha(mode == "blend" and (BC.db.game.bgOpacity or 0.85) or 1)
+	self.videoVisible = true
+	self.root.bgImage:Hide()
 	tex:Show()
 end
 

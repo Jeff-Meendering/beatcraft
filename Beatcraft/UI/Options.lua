@@ -285,6 +285,12 @@ function Opt:Create()
 	end, function(v)
 		g.cursorSize = v
 	end, "%d", 290))
+	place(T, W.Slider(f, "Song / video opacity (blended mode)", 0.2, 1, 0.05, function()
+		return g.bgOpacity
+	end, function(v)
+		g.bgOpacity = v
+		refreshGame()
+	end, function(v) return math.floor(v * 100 + 0.5) .. "%" end, 290))
 	for _, item in ipairs({ { "mouseButtons", "Mouse buttons hit notes" }, { "kiaiFlash", "Kiai background flashes" } }) do
 		local key = item[1]
 		place(T, W.Check(f, item[2], function() return g[key] end, function(v) g[key] = v end, 290), 22)
