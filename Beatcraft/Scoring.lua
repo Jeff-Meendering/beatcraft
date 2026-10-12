@@ -1,4 +1,3 @@
--- Judgement tallies, score, accuracy, grades and the local high scores.
 local _, BC = ...
 
 local Scoring = BC:Module("Scoring")
@@ -21,9 +20,6 @@ function Scoring.New(modMult)
 	}, Tally)
 end
 
--- value: 300 / 100 / 50 / 0. err: timing error in ms (optional).
--- noCombo: count the judgement and score but leave combo alone (sliders
--- handle their combo per part).
 function Tally:Judge(value, err, noCombo)
 	if value >= 300 then
 		self.c300 = self.c300 + 1
@@ -75,7 +71,6 @@ function Tally:Accuracy()
 	return (300 * self.c300 + 100 * self.c100 + 50 * self.c50) / (300 * total)
 end
 
--- osu! grade rules.
 function Tally:Grade()
 	local total = self:Total()
 	if total == 0 then
@@ -96,7 +91,6 @@ function Tally:Grade()
 	return "D"
 end
 
--- Mean error and unstable rate (stddev * 10) of recorded hit errors.
 function Tally:ErrorStats()
 	local errs = self.errors
 	local n = #errs
@@ -115,7 +109,6 @@ function Tally:ErrorStats()
 	return mean, math.sqrt(var / n) * 10
 end
 
--- Hit windows (ms) for an overall difficulty.
 function Scoring.Windows(od)
 	return 80 - 6 * od, 140 - 8 * od, 200 - 10 * od
 end
@@ -147,7 +140,6 @@ function Scoring.ModString(mods)
 	return table.concat(out, ",")
 end
 
--- Stores a result; returns its rank (1 = new personal best).
 function Scoring.Save(mapKey, tally, mods)
 	local list = BC.db.scores[mapKey] or {}
 	BC.db.scores[mapKey] = list

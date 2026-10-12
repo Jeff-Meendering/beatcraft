@@ -1,6 +1,3 @@
--- Turns the compact beatmap data written by the importer into playable
--- objects: timing points, circles, sliders (with sampled curve paths),
--- spinners and break periods.
 local _, BC = ...
 
 local U = BC.Util
@@ -23,10 +20,6 @@ local function lines(s)
 	end
 	return out
 end
-
---------------------------------------------------------------------------
--- Curves
---------------------------------------------------------------------------
 
 local function bezierPoint(pts, t)
 	local n = #pts
@@ -74,7 +67,6 @@ local function sampleBezierSegment(seg, out)
 end
 
 local function sampleBezier(pts, out)
-	-- Repeated control points ("red anchors") split the curve into segments.
 	local seg = { pts[1] }
 	for i = 2, #pts do
 		local p, prev = pts[i], pts[i - 1]
@@ -141,7 +133,6 @@ local function sampleCatmull(pts, out)
 	end
 end
 
--- Builds a path {x={}, y={}, cum={}} of exactly `length` osu! pixels.
 local function buildPath(ctype, pts, length)
 	local poly = {}
 	if ctype == "L" then
@@ -149,7 +140,6 @@ local function buildPath(ctype, pts, length)
 			appendPoint(poly, p[1], p[2])
 		end
 	elseif ctype == "P" and #pts == 3 and sampleArc(pts, poly) then
-		-- sampled as an arc
 	elseif ctype == "C" then
 		sampleCatmull(pts, poly)
 	else
@@ -176,7 +166,6 @@ local function buildPath(ctype, pts, length)
 		xs[#xs + 1], ys[#ys + 1], cum[#cum + 1] = poly[i][1], poly[i][2], total
 	end
 	if length and total < length then
-		-- Path shorter than declared length: extend along the last direction.
 		local n = #xs
 		local dx, dy = xs[n] - xs[n - 1], ys[n] - ys[n - 1]
 		local seg = sqrt(dx * dx + dy * dy)
@@ -191,7 +180,6 @@ local function buildPath(ctype, pts, length)
 	return { x = xs, y = ys, cum = cum, length = total }
 end
 
--- Position at distance d along a path.
 function Beatmap.PathAt(path, d)
 	local cum = path.cum
 	local n = #cum
@@ -215,7 +203,6 @@ function Beatmap.PathAt(path, d)
 	return path.x[lo] + (path.x[hi] - path.x[lo]) * f, path.y[lo] + (path.y[hi] - path.y[lo]) * f
 end
 
--- Ball position of a slider at song time t (ms).
 function Beatmap.SliderBall(obj, t)
 	local progress = (t - obj.t) / obj.span
 	if progress < 0 then
@@ -235,10 +222,6 @@ function Beatmap.SliderBall(obj, t)
 	end
 	return Beatmap.PathAt(obj.path, frac * obj.path.length)
 end
-
---------------------------------------------------------------------------
--- Parsing
---------------------------------------------------------------------------
 
 local function parseTiming(s)
 	local points = {}
@@ -277,7 +260,6 @@ local function parseColors(s)
 	return colors
 end
 
--- mods: table with hr = true to flip vertically. Returns a beatmap table.
 function Beatmap.Parse(map, mods)
 	local bm = {
 		map = map,
@@ -313,7 +295,6 @@ function Beatmap.Parse(map, mods)
 		local f = U.Split(line, ",")
 		local x, y, t, typ = tonumber(f[1]), tonumber(f[2]), tonumber(f[3]), tonumber(f[4])
 		if x and y and t and typ then
-			-- advance timing pointer (timing points are sorted by time)
 			while bm.timing[tpIndex] and bm.timing[tpIndex].t <= t + 1 do
 				local p = bm.timing[tpIndex]
 				if p.red then
@@ -386,10 +367,6 @@ function Beatmap.Parse(map, mods)
 	return bm
 end
 
---------------------------------------------------------------------------
--- Beat grid
---------------------------------------------------------------------------
-
 function Beatmap.RedAt(bm, t)
 	local red = bm.red
 	local cur = red[1]
@@ -403,14 +380,12 @@ function Beatmap.RedAt(bm, t)
 	return cur
 end
 
--- Latest beat subdivision (1/div beat) at or before t, in ms.
 function Beatmap.GridAtOrBefore(bm, t, div)
 	local tp = Beatmap.RedAt(bm, t)
 	local step = tp.beatLength / (div or 1)
 	return tp.t + floor((t - tp.t) / step) * step
 end
 
--- Nearest beat subdivision to t and the signed distance to it.
 function Beatmap.NearestGrid(bm, t, div)
 	local tp = Beatmap.RedAt(bm, t)
 	local step = tp.beatLength / (div or 1)
@@ -423,7 +398,6 @@ function Beatmap.BPM(bm)
 	return 60000 / bm.red[1].beatLength
 end
 
--- Rough star rating from metadata the importer provides (no full parse).
 function Beatmap.Stars(map)
 	local seconds = math.max((map.len or 60000) / 1000, 1)
 	local density = (map.n or 0) / seconds
@@ -432,7 +406,6 @@ function Beatmap.Stars(map)
 	return U.Clamp(stars, 0.1, 12)
 end
 
--- Difficulty stats after mods. Returns ar, od, cs, hp.
 function Beatmap.ModdedStats(map, mods)
 	local ar, od, cs, hp = map.ar or map.od or 5, map.od or 5, map.cs or 4, map.hp or 5
 	if mods and mods.hr then
@@ -444,7 +417,6 @@ function Beatmap.ModdedStats(map, mods)
 	return ar, od, cs, hp
 end
 
--- Approach time (ms) for an approach rate.
 function Beatmap.Preempt(ar)
 	if ar < 5 then
 		return 1200 + 600 * (5 - ar) / 5
@@ -452,7 +424,6 @@ function Beatmap.Preempt(ar)
 	return 1200 - 750 * (ar - 5) / 5
 end
 
--- Circle radius in osu! pixels for a circle size.
 function Beatmap.Radius(cs)
 	return 54.4 - 4.48 * cs
 end

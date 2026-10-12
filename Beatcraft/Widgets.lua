@@ -1,5 +1,3 @@
--- Small self-contained UI kit. Avoids Blizzard templates that differ or
--- disappear between client flavors.
 local _, BC = ...
 
 local W = {}
@@ -60,7 +58,6 @@ function W.Tooltip(owner, title, body)
 	end)
 end
 
--- A dark draggable window. Pass a global name to make Escape close it.
 function W.Panel(name, parent, w, h, title)
 	local f = CreateFrame("Frame", name, parent or UIParent)
 	f:SetSize(w, h)
@@ -210,10 +207,6 @@ function W.Slider(parent, label, minV, maxV, step, get, set, fmt, width)
 	return holder
 end
 
---------------------------------------------------------------------------
--- Dropdown with a shared popup menu
---------------------------------------------------------------------------
-
 local menu, catcher
 
 local function closeMenu()
@@ -277,7 +270,6 @@ function W.ShowMenu(anchor, options, onPick, width)
 	menu:Show()
 end
 
--- options: list of {value=, text=} or a function returning one
 function W.Dropdown(parent, label, options, get, set, width)
 	width = width or 240
 	local holder = CreateFrame("Frame", nil, parent)
@@ -312,10 +304,6 @@ function W.Dropdown(parent, label, options, get, set, width)
 	holder:Refresh()
 	return holder
 end
-
---------------------------------------------------------------------------
--- Text input
---------------------------------------------------------------------------
 
 function W.EditBox(parent, w, h)
 	local e = CreateFrame("EditBox", nil, parent)
@@ -371,7 +359,6 @@ function W.MultiLineEdit(parent, w, h)
 	return holder
 end
 
--- Click, then press a key to bind it.
 function W.KeyBind(parent, label, get, set, width)
 	width = width or 240
 	local holder = CreateFrame("Frame", nil, parent)
@@ -417,10 +404,6 @@ function W.KeyBind(parent, label, get, set, width)
 	holder:Refresh()
 	return holder
 end
-
---------------------------------------------------------------------------
--- Virtual scrolling list
---------------------------------------------------------------------------
 
 function W.ScrollList(parent, w, h, rowH, createRow, updateRow)
 	local f = CreateFrame("Frame", nil, parent)

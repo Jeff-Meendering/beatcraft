@@ -7,24 +7,20 @@ BC.ACCENT = { 1, 0.4, 0.67 }
 BC.ACCENT_HEX = "ff66aa"
 BC.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 
---------------------------------------------------------------------------
--- Saved variables
---------------------------------------------------------------------------
-
 local DEFAULTS = {
-	offset = 0, -- global audio offset in ms (positive = notes later)
-	channel = "Master", -- sound channel used for music
+	offset = 0,
+	channel = "Master",
 	hitsound = "tick",
 	minimap = { angle = 215, hide = false },
-	mapOffsets = {}, -- [mapKey] = ms
-	scores = {}, -- [mapKey] = { {score, acc, combo, grade, mods, date, c300, c100, c50, miss}, ... }
-	guildScores = {}, -- [mapKey] = { [player] = {score, acc, grade, combo} }
+	mapOffsets = {},
+	scores = {},
+	guildScores = {},
 	shareGuild = true,
-	rotations = {}, -- [CLASS] = { [tree] = { entries } }
-	playlist = {}, -- [songId] = true
+	rotations = {},
+	playlist = {},
 	lastSong = nil,
 	lastMap = nil,
-	fights = {}, -- recent raid mode summaries
+	fights = {},
 	game = {
 		keys = { "Z", "X" },
 		dim = 0.8,
@@ -39,20 +35,20 @@ local DEFAULTS = {
 	},
 	raid = {
 		enabled = false,
-		difficulty = "normal", -- easy / normal / hard
-		bonus = "off", -- off / light / full
+		difficulty = "normal",
+		bonus = "off",
 		bonusKeys = { "Z", "X" },
-		approach = 1.2, -- seconds a note takes to fall
+		approach = 1.2,
 		scale = 1,
 		alpha = 1,
 		locked = true,
 		point = nil,
-		showMode = "target", -- target / combat / always
-		music = "pull", -- pull / always / off
+		showMode = "target",
+		music = "pull",
 		keepMusic = false,
 		freestyle = false,
 		specOverride = 0,
-		playlistMode = "shuffle", -- shuffle / playlist
+		playlistMode = "shuffle",
 		scrollUp = false,
 		showKeybinds = true,
 		summary = true,
@@ -73,10 +69,6 @@ local function mergeDefaults(dst, src)
 end
 BC.mergeDefaults = mergeDefaults
 BC.DEFAULTS = DEFAULTS
-
---------------------------------------------------------------------------
--- Events and internal messages
---------------------------------------------------------------------------
 
 local eventFrame = CreateFrame("Frame")
 local eventHandlers = {}
@@ -113,10 +105,6 @@ function BC:Fire(msg, ...)
 	end
 end
 
---------------------------------------------------------------------------
--- Modules
---------------------------------------------------------------------------
-
 local modules = {}
 
 function BC:Module(name)
@@ -126,10 +114,6 @@ function BC:Module(name)
 	return m
 end
 
---------------------------------------------------------------------------
--- Output
---------------------------------------------------------------------------
-
 function BC:Print(...)
 	local parts = {}
 	for i = 1, select("#", ...) do
@@ -137,10 +121,6 @@ function BC:Print(...)
 	end
 	DEFAULT_CHAT_FRAME:AddMessage("|cff" .. BC.ACCENT_HEX .. "Beatcraft|r: " .. table.concat(parts, " "))
 end
-
---------------------------------------------------------------------------
--- Startup
---------------------------------------------------------------------------
 
 BC:On("ADDON_LOADED", function(_, name)
 	if name ~= addonName then
@@ -169,10 +149,6 @@ BC:On("SPELLS_CHANGED", function()
 	BC.Compat.RebuildSpellbook()
 	BC:Fire("SPELLBOOK_CHANGED")
 end)
-
---------------------------------------------------------------------------
--- Slash commands
---------------------------------------------------------------------------
 
 local HELP = {
 	"/beat - open the Beatcraft menu",

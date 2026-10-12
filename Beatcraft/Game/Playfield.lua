@@ -1,6 +1,3 @@
--- Downtime Mode: a fullscreen osu!-style game. This file holds the shared
--- fullscreen window (keyboard/mouse capture, screen switching, auto-close)
--- and the gameplay screen. Song select and results live next to it.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -18,13 +15,8 @@ local ACCENT = BC.ACCENT
 local floor, abs, sqrt, atan2, min, max = math.floor, math.abs, math.sqrt, math.atan2, math.min, math.max
 local PI = math.pi
 
--- circle.tga / dot.tga draw their circle slightly inside the texture
 local CIRCLE_TEX_SCALE = 64 / 60
 local DOT_TEX_SCALE = 32 / 30
-
---------------------------------------------------------------------------
--- Fullscreen window
---------------------------------------------------------------------------
 
 function Game:Create()
 	if self.root then
@@ -171,14 +163,12 @@ function Game:OnMouse(button, down)
 	end
 end
 
--- Cursor position in root coordinates.
 function Game:Cursor()
 	local x, y = GetCursorPosition()
 	local scale = self.root:GetEffectiveScale()
 	return x / scale, y / scale
 end
 
--- Things that should pull the player out of the game.
 BC:On("PLAYER_REGEN_DISABLED", function()
 	Game:Close("Entered combat - closed Downtime Mode.")
 end)
@@ -211,10 +201,6 @@ pcall(BC.On, BC, "LFG_PROPOSAL_SHOW", function()
 		Game:Close("Your group finder queue popped!")
 	end
 end)
-
---------------------------------------------------------------------------
--- Gameplay screen
---------------------------------------------------------------------------
 
 local function createCircle(parent)
 	local f = CreateFrame("Frame", nil, parent)
@@ -286,7 +272,6 @@ function Play:Create(root)
 		fs:ClearAllPoints()
 	end)
 
-	-- slider ball and follow circle
 	self.ball = CreateFrame("Frame", nil, pf)
 	self.ball:SetSize(1, 1)
 	self.ball:SetFrameLevel(pf:GetFrameLevel() + 900)
@@ -298,7 +283,6 @@ function Play:Create(root)
 	self.ball.follow:SetPoint("CENTER")
 	self.ball:Hide()
 
-	-- spinner
 	local sp = CreateFrame("Frame", nil, pf)
 	sp:SetPoint("CENTER")
 	sp:SetSize(1, 1)
@@ -320,7 +304,6 @@ function Play:Create(root)
 	sp:Hide()
 	self.spinner = sp
 
-	-- cursor and trail, above everything else
 	local cursorLayer = CreateFrame("Frame", nil, screen)
 	cursorLayer:SetAllPoints()
 	cursorLayer:SetFrameLevel(pf:GetFrameLevel() + 1500)
@@ -376,7 +359,6 @@ function Play:CreateHUD(screen)
 	self.progFill:SetHeight(4)
 	self.progWidth = 160
 
-	-- hit error bar
 	local eb = CreateFrame("Frame", nil, hud)
 	eb:SetSize(260, 24)
 	eb:SetPoint("BOTTOM", 0, 18)
@@ -401,7 +383,6 @@ function Play:CreateHUD(screen)
 	eb.mean = W.Text(eb, 14, "v", "OUTLINE")
 	eb.nextTick = 1
 
-	-- key overlay
 	local ko = CreateFrame("Frame", nil, hud)
 	ko:SetSize(44, 4 * 46)
 	ko:SetPoint("RIGHT", -16, 0)
@@ -429,7 +410,6 @@ function Play:CreateHUD(screen)
 	self.introText = W.Text(hud, 22, "", "THICKOUTLINE")
 	self.introText:SetPoint("CENTER", 0, 160)
 
-	-- failed overlay
 	local fail = CreateFrame("Frame", nil, hud)
 	fail:SetAllPoints()
 	fail:SetFrameLevel(hud:GetFrameLevel() + 50)
@@ -450,10 +430,6 @@ function Play:CreateHUD(screen)
 	self.failOverlay = fail
 end
 
---------------------------------------------------------------------------
--- Starting / stopping
---------------------------------------------------------------------------
-
 function Play:Layout()
 	local root = self.screen
 	local h = root:GetHeight() * 0.8
@@ -464,7 +440,6 @@ function Play:Layout()
 	self.pf:SetPoint("CENTER", root, "CENTER", 0, -root:GetHeight() * 0.02)
 end
 
--- Starts a map. mods: {hr, hd, ez, nf}
 function Play:Enter(map, mods)
 	self.map, self.mods = map, mods or {}
 	self.song = map.song
@@ -503,7 +478,6 @@ function Play:Start()
 	self.hpStat = hp
 	self.tally = Scoring.New(Scoring.ModMultiplier(mods))
 
-	-- per-play state wraps the cached beatmap objects
 	self.objs = {}
 	for i, obj in ipairs(bm.objects) do
 		self.objs[i] = setmetatable({ index = i }, { __index = obj })
@@ -534,7 +508,6 @@ function Play:Start()
 	Game:SetBackground(song.bg)
 	Game:SetDim(BC.db.game.dim)
 
-	-- give the player time to see the first object
 	local leadMs = max(0, self.preempt + 800 - bm.firstTime, map.lead or 0)
 	self.offset = BC.db.offset + (BC.db.mapOffsets[map.key] or 0)
 	Clock:Play(song.audio, leadMs / 1000, self.offset, function()
@@ -584,16 +557,11 @@ function Play:Finish()
 	end)
 end
 
---------------------------------------------------------------------------
--- Coordinates
---------------------------------------------------------------------------
-
 function Play:Place(f, x, y)
 	f:ClearAllPoints()
 	f:SetPoint("CENTER", self.pf, "TOPLEFT", x * self.s, -y * self.s)
 end
 
--- Cursor in osu! pixels.
 function Play:CursorOsu()
 	local cx, cy = Game:Cursor()
 	local left, top = self.pf:GetLeft(), self.pf:GetTop()
@@ -602,10 +570,6 @@ function Play:CursorOsu()
 	end
 	return (cx - left) / self.s, (top - cy) / self.s, cx, cy
 end
-
---------------------------------------------------------------------------
--- Object visuals
---------------------------------------------------------------------------
 
 function Play:SetupCircle(f, obj, isTail)
 	local d = self.radius * 2 * self.s
@@ -710,7 +674,7 @@ end
 
 function Play:Burst(value, x, y)
 	if value == 300 then
-		return -- keep the screen clean; only show imperfect hits
+		return
 	end
 	local fs = self.burstPool:Acquire()
 	local c = U.JUDGE_COLORS[value]
@@ -750,10 +714,6 @@ function Play:Hitsound()
 		Compat.PlayKit(id, BC.db.channel)
 	end
 end
-
---------------------------------------------------------------------------
--- Judging
---------------------------------------------------------------------------
 
 function Play:ChangeHP(delta)
 	self.tally.hp = U.Clamp(self.tally.hp + delta, 0, 1)
@@ -828,7 +788,6 @@ function Play:AnyHeld()
 	return false
 end
 
--- A key or mouse button went down.
 function Play:Press(t)
 	local cx, cy = self:CursorOsu()
 	local r = self.radius
@@ -837,7 +796,6 @@ function Play:Press(t)
 		if hittable then
 			local err = t - o.t
 			if err < -self.w50 then
-				-- too early for the first open object: ignore (osu! "notelock")
 				if abs(err) < 400 and o.head then
 					o.shakeAt = GetTime()
 				end
@@ -857,10 +815,6 @@ function Play:Press(t)
 		end
 	end
 end
-
---------------------------------------------------------------------------
--- Frame update
---------------------------------------------------------------------------
 
 function Play:UpdateObjects(t, now)
 	local held = self:AnyHeld()
@@ -902,7 +856,6 @@ function Play:UpdateObjects(t, now)
 				self:UpdateApproach(f, o, t, alpha)
 			end
 		elseif o.kind == "slider" then
-			-- head
 			if not o.headDone and t > o.t + self.w50 then
 				self:SliderHead(o, false)
 			end
@@ -925,7 +878,6 @@ function Play:UpdateObjects(t, now)
 				o.body:SetAlpha(alpha * 0.9)
 				o.tail:SetAlpha(alpha)
 			end
-			-- ball and checkpoints
 			if t >= o.t and not o.judged then
 				local bx, by = Beatmap.SliderBall(o, t)
 				local dx, dy = cx - bx, cy - by
@@ -942,8 +894,6 @@ function Play:UpdateObjects(t, now)
 						self:ChangeHP(-0.02)
 					end
 					o.nextPart = o.nextPart + 1
-					-- the tail shows a reverse arrow while a reverse at the tail is
-					-- still ahead (reverses at the tail happen on odd parts)
 					local nextOdd = o.nextPart % 2 == 1 and o.nextPart or o.nextPart + 1
 					if o.tail and nextOdd >= o.slides then
 						o.tail.arrow:Hide()
@@ -1143,7 +1093,6 @@ function Play:UpdateHUD(t, now)
 	end
 end
 
-
 function Play:OnUpdate()
 	local now = GetTime()
 	self:UpdateCursor(now)
@@ -1160,7 +1109,6 @@ function Play:OnUpdate()
 	end
 	self:UpdateObjects(t, now)
 
-	-- health drain between the first and last object, outside breaks
 	if t > self.bm.firstTime and t < self.bm.lastTime and not self:InBreak(t) then
 		self:ChangeHP(-(0.012 + self.hpStat * 0.0045) * dt)
 	end
@@ -1175,10 +1123,6 @@ function Play:OnUpdate()
 		self:Finish()
 	end
 end
-
---------------------------------------------------------------------------
--- Input
---------------------------------------------------------------------------
 
 function Play:InputDown(slot)
 	if self.held[slot] then

@@ -1,5 +1,3 @@
--- Picks the next ability from the active priority list and predicts when
--- it can be pressed. Raid Mode turns those predictions into notes.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -22,7 +20,6 @@ function Engine:Tree()
 	return Compat.PrimaryTree() or 1
 end
 
--- Returns the stored entries for a class/tree and whether they are custom.
 function Engine:GetEntries(class, tree)
 	local custom = BC.db.rotations[class] and BC.db.rotations[class][tree]
 	if custom then
@@ -71,7 +68,6 @@ function Engine:Rebuild()
 	end
 	self.entries = compiled
 
-	-- One lane per distinct known spell, in priority order.
 	local lanes, laneOf = {}, {}
 	for _, c in ipairs(compiled) do
 		local key = c.spell and c.spell:lower()
@@ -94,7 +90,6 @@ function Engine:LaneFor(spell)
 	return spell and self.laneOf and self.laneOf[spell:lower()]
 end
 
--- End time of the global cooldown (GetTime base); <= now when idle.
 function Engine:GCDEnd(now)
 	local s, d = Compat.SpellCooldown(61304)
 	if s and d and d > 0 and d <= 2 then
@@ -115,8 +110,6 @@ function Engine:HasEnemyTarget()
 	return UnitExists("target") and UnitCanAttack("player", "target") and not UnitIsDead("target")
 end
 
--- Returns entry, readyTime for the next ability in the requested stream
--- (on-GCD when offStream is false, off-GCD otherwise), or nil.
 function Engine:Next(offStream, now)
 	if not self:HasEnemyTarget() then
 		return nil
@@ -129,7 +122,6 @@ function Engine:Next(offStream, now)
 	end
 	local fallback, fallbackReady
 	for _, e in ipairs(self.entries) do
-		-- skip abilities already queued (Heroic Strike, Maul, Raptor Strike)
 		if e.off == offStream and e.fn and Compat.IsKnown(e.spell) and not (offStream and Compat.IsCurrentSpell(e.spell)) then
 			local pass, err = Cond.Eval(e.fn)
 			e.runtimeErr = err

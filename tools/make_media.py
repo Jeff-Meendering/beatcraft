@@ -1,21 +1,17 @@
-"""Generates the addon's textures as uncompressed 32-bit TGA files.
-
-WoW tints white textures with SetVertexColor, so almost everything here is
-white with an alpha shape. Run from the repo root:  python tools/make_media.py
-"""
+"""Generates the addon's textures as uncompressed 32-bit TGA files."""
 import math
 import os
 import struct
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "Beatcraft", "Media")
-SS = 4  # supersampling factor for anti-aliasing
+SS = 4
 
 
 def write_tga(path, w, h, pixels):
     """pixels: list of rows (top to bottom) of (r, g, b, a) floats 0..1."""
     header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, w, h, 32, 8)
     body = bytearray()
-    for row in reversed(pixels):  # TGA default origin is bottom-left
+    for row in reversed(pixels):
         for r, g, b, a in row:
             body += bytes((
                 int(max(0, min(1, b)) * 255 + 0.5),
@@ -66,7 +62,7 @@ def circle(x, y):
     d, _ = polar(x, y, 128)
     if d > 60:
         return (1, 1, 1, 0)
-    shade = 1.0 - 0.25 * (d / 60) ** 2  # lighter centre, darker rim
+    shade = 1.0 - 0.25 * (d / 60) ** 2
     return (shade, shade, shade, 1)
 
 
@@ -74,7 +70,7 @@ def circle_overlay(x, y):
     d, _ = polar(x, y, 128)
     if 54 <= d <= 61:
         return (1, 1, 1, 1)
-    if 49 <= d < 54:  # soft inner shadow under the rim
+    if 49 <= d < 54:
         return (0, 0, 0, 0.35 * (d - 49) / 5)
     return (1, 1, 1, 0)
 
@@ -112,7 +108,7 @@ def cursor(x, y):
 
 def rounded_rect(size, radius, border):
     def shader(x, y):
-        m = 2  # margin
+        m = 2
         lo, hi = m + radius, size - m - radius
         cx = min(max(x, lo), hi)
         cy = min(max(y, lo), hi)
@@ -128,7 +124,6 @@ def rounded_rect(size, radius, border):
 
 
 def lane_grad(x, y):
-    # y is 0 at the top of the texture: fade in towards the bottom
     t = y / 128.0
     return (1, 1, 1, t ** 1.6)
 
@@ -139,7 +134,6 @@ def logo(x, y):
         return (1, 1, 1, 0)
     if d > 55:
         return (1, 1, 1, 1)
-    # play triangle pointing right, centred slightly right of middle
     px, py = x - 64, y - 64
     if -16 <= px <= 24 and abs(py) <= (24 - px) * 0.75 and abs(py) <= 22:
         return (1, 1, 1, 1)
@@ -147,7 +141,6 @@ def logo(x, y):
 
 
 def arrow(x, y):
-    # chevron pointing right, used for slider reverse arrows
     px, py = x - 32, y - 32
     t = 7
     on = abs(abs(py) - (14 - px * 1.0)) < t and -10 <= px <= 16 and abs(py) <= 22

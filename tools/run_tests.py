@@ -1,8 +1,4 @@
-"""Runs the headless Beatcraft tests in a real Lua 5.1 runtime (via lupa).
-
-usage: python tools/run_tests.py <path to generated Library.lua>
-Requires: pip install lupa
-"""
+"""Runs the headless Beatcraft tests in a real Lua 5.1 runtime (via lupa)."""
 import os
 import sys
 

@@ -1,7 +1,3 @@
--- Minimal World of Warcraft API mock for running Beatcraft headless in Lua 5.1.
--- Frames are plain tables; layout is not computed. Unknown widget methods are
--- recorded so they can be checked against the real API.
-
 MOCK = {
 	now = 1000,
 	precise = 5000,
@@ -389,8 +385,6 @@ function UnitAffectingCombat()
 	return MOCK.combat
 end
 
--- units --------------------------------------------------------------
-
 function UnitClass(unit)
 	return "Warrior", MOCK.class or "WARRIOR", 1
 end
@@ -473,8 +467,6 @@ function UnitAura(unit, i, filter)
 		return a.name, 136000, a.count or 1, nil, a.duration or 0, a.expires or 0, "player"
 	end
 end
-
--- spells ---------------------------------------------------------------
 
 MOCK.spells = {
 	{ id = 100, name = "Battle Shout", cast = 0 },
@@ -565,8 +557,6 @@ function GetNumTalentTabs()
 	return 3
 end
 
--- action bars ----------------------------------------------------------
-
 MOCK.actions = { [1] = 101, [2] = 102, [3] = 105, [4] = 106, [5] = 100, [6] = 103, [7] = 104 }
 function GetActionInfo(slot)
 	local id = MOCK.actions[slot]
@@ -630,8 +620,6 @@ function GetBattlefieldStatus()
 	return "none"
 end
 
--- sound ----------------------------------------------------------------
-
 function PlaySoundFile(path, channel)
 	assert(type(path) == "string" or type(path) == "number", "PlaySoundFile path")
 	MOCK.soundHandle = MOCK.soundHandle + 1
@@ -647,8 +635,6 @@ end
 function PlaySound(id, channel)
 	assert(type(id) == "number", "PlaySound id")
 end
-
--- addons / chat --------------------------------------------------------
 
 C_AddOns = {
 	LoadAddOn = function(name)
@@ -673,8 +659,6 @@ C_ChatInfo = {
 	end,
 }
 
--- driver helpers -------------------------------------------------------
-
 function MOCK.FireEvent(event, ...)
 	local list = MOCK.events[event]
 	if not list then
@@ -688,7 +672,6 @@ function MOCK.FireEvent(event, ...)
 	end
 end
 
--- Advances both clocks and runs due timers and visible OnUpdate scripts.
 function MOCK.Advance(seconds, step)
 	step = step or 1 / 60
 	local remaining = seconds

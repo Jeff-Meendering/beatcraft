@@ -1,5 +1,3 @@
--- Offset calibration: tap along to the beat and Beatcraft measures how
--- early or late WoW's audio reaches your ears.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -12,7 +10,7 @@ local Cal = BC:Module("Calibrate")
 
 local NEEDED = 24
 local SKIP = 4
-local METRONOME_BEAT = 0.6 -- 100 BPM
+local METRONOME_BEAT = 0.6
 local TICK = SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856
 
 function Cal:Create()
@@ -118,7 +116,6 @@ function Cal:Start()
 	if map then
 		self.bm = Library:Parse(map)
 		self.source:SetText("Song: " .. (map.song.title or "?") .. " (" .. math.floor(Beatmap.BPM(self.bm) + 0.5) .. " BPM)")
-		-- raw clock: no offset applied, that's what we're measuring
 		Clock:Play(map.song.audio, 0.5, 0)
 	else
 		self.source:SetText("No songs imported - using a metronome tick (less accurate for music).")
@@ -128,7 +125,6 @@ function Cal:Start()
 	self.running = true
 end
 
--- Signed distance (ms) from the nearest beat for the current moment.
 function Cal:CurrentError()
 	if self.bm then
 		local _, err = Beatmap.NearestGrid(self.bm, Clock:Time(), 1)

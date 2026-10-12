@@ -1,4 +1,3 @@
--- The hub window opened with /beat or the minimap button.
 local _, BC = ...
 
 local U = BC.Util

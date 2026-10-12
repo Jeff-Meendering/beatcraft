@@ -73,7 +73,6 @@ function U.CopyTable(t)
 	return out
 end
 
--- osu! default combo colours
 U.COMBO_COLORS = {
 	{ 1.00, 0.75, 0.00 },
 	{ 0.00, 0.79, 0.00 },
@@ -97,7 +96,6 @@ U.GRADE_COLORS = {
 	D = { 1.0, 0.3, 0.3 },
 }
 
--- Simple object pool.
 local Pool = {}
 Pool.__index = Pool
 
@@ -131,7 +129,6 @@ function Pool:ReleaseAll()
 	end
 end
 
--- Shortens WoW binding text: "SHIFT-1" -> "S1", "BUTTON4" -> "M4".
 function U.ShortKey(key)
 	if not key then
 		return ""

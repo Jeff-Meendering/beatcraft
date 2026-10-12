@@ -1,11 +1,3 @@
--- Raid Mode: your rotation as a rhythm game.
---
--- The rotation engine predicts the next ability and when it becomes
--- pressable. A note falls down that ability's lane, timed to land on the
--- song's beat (inside the spell queue window, so hitting the beat never
--- delays the cast). Real casts are detected from the action-bar and cast
--- hooks plus spellcast events, and judged against the note. Beatcraft never
--- casts anything itself: every cast is still a normal key press.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -20,8 +12,8 @@ local Scoring = BC.Scoring
 local RM = BC:Module("RaidMode")
 
 local LANE_W, LANE_GAP, LANE_H = 44, 4, 260
-local LATE_LIMIT = 1.0 -- seconds after a note's time before it counts as missed
-local SETTLE = 0.08 -- wait after a hit so cooldown info updates
+local LATE_LIMIT = 1.0
+local SETTLE = 0.08
 local DIFF = { easy = 1.5, normal = 1.0, hard = 0.75 }
 local LABELS = { [300] = "PERFECT", [100] = "GREAT", [50] = "GOOD" }
 
@@ -41,10 +33,6 @@ local function queueWindow()
 	end
 	return U.Clamp(v / 1000, 0, 0.4)
 end
-
---------------------------------------------------------------------------
--- Frames
---------------------------------------------------------------------------
 
 local function createNote(parent)
 	local f = CreateFrame("Frame", nil, parent)
@@ -92,7 +80,6 @@ function RM:CreateFrames()
 	root.unlockText = W.Text(root, 12, "Drag to move  -  /beat lock when done", "OUTLINE")
 	root.unlockText:SetPoint("BOTTOM", root, "TOP", 0, 4)
 
-	-- container the lanes and notes live in
 	self.field = CreateFrame("Frame", nil, root)
 	self.field:SetPoint("BOTTOMLEFT", 0, 0)
 
@@ -114,7 +101,6 @@ function RM:CreateFrames()
 		f:SetAlpha(1)
 	end)
 
-	-- Hidden buttons the bonus keys are bound to (CLICK bindings).
 	self.bindOwner = CreateFrame("Frame")
 	for i = 1, 2 do
 		local b = CreateFrame("Button", "BeatcraftBonus" .. i, UIParent)
@@ -162,7 +148,6 @@ local function createLane(parent)
 	return lane
 end
 
--- Builds lanes for the current rotation (or the freestyle lane) plus bonus lanes.
 function RM:Layout()
 	if not self.root then
 		return
@@ -262,10 +247,6 @@ function RM:ApplyPosition()
 	end
 end
 
---------------------------------------------------------------------------
--- Keybind labels on receptors
---------------------------------------------------------------------------
-
 local function bindingForSlot(slot)
 	local cmd
 	if slot <= 12 then
@@ -310,10 +291,6 @@ function RM:UpdateKeybinds()
 		end
 	end
 end
-
---------------------------------------------------------------------------
--- Enable / visibility
---------------------------------------------------------------------------
 
 function RM:SetEnabled(on)
 	BC.db.raid.enabled = on and true or false
@@ -375,8 +352,6 @@ function RM:UpdateVisibility()
 	end
 end
 
--- Bonus keys are bound with override bindings, which can only change out
--- of combat; changes requested in combat are applied afterwards.
 function RM:ApplyBindings()
 	if InCombatLockdown() then
 		self.bindingsPending = true
@@ -394,10 +369,6 @@ function RM:ApplyBindings()
 		end
 	end
 end
-
---------------------------------------------------------------------------
--- Music
---------------------------------------------------------------------------
 
 function RM:PickNextSong()
 	if not Library.loaded or Library:Count() == 0 or BC.db.raid.music == "off" then
@@ -421,7 +392,6 @@ function RM:PickNextSong()
 		pick = pool[math.random(#pool)]
 	end
 	self.nextSong = pick
-	-- parse ahead of time so starting music on pull does not hitch
 	self.nextBM = Library:Parse(Library:RaidMap(pick))
 end
 
@@ -479,10 +449,6 @@ function RM:UpdateMusic(now)
 	end
 end
 
---------------------------------------------------------------------------
--- Notes
---------------------------------------------------------------------------
-
 function RM:ClearNotes()
 	for note in pairs(self.notes) do
 		self.notePool:Release(note.frame)
@@ -498,9 +464,6 @@ function RM:ClearNotes()
 	end
 end
 
--- Hit time for an ability that becomes ready at `ready`: the latest beat
--- subdivision inside the spell queue window, so pressing on the beat
--- queues the cast without delaying it.
 function RM:PlanTime(ready, now)
 	local T = ready
 	if self:MusicPlaying() then
@@ -576,7 +539,6 @@ function RM:Evaluate(now)
 				self.tally:Judge(0)
 				self:Finish(note, "miss", now)
 			elseif now < note.T - 0.12 then
-				-- still falling: follow changes in the rotation (procs, target swaps)
 				local entry, ready = Engine:Next(off, now)
 				if not entry then
 					self:Finish(note, "cancel", now)
@@ -599,10 +561,6 @@ function RM:Evaluate(now)
 		end
 	end
 end
-
---------------------------------------------------------------------------
--- Bonus lanes (song notes)
---------------------------------------------------------------------------
 
 function RM:BuildBonusNotes()
 	wipe(self.bonusNotes)
@@ -663,7 +621,6 @@ function RM:UpdateBonus(now)
 	local songNow = Clock:TimeAt(now)
 	local window = self:BonusWindow() * 1000
 	local k = self.bonusIndex or 1
-	-- advance past finished notes and mark misses
 	while self.bonusNotes[k] do
 		local b = self.bonusNotes[k]
 		if not b.done and songNow - b.t > window then
@@ -715,10 +672,6 @@ function RM:UpdateBonus(now)
 	end
 end
 
---------------------------------------------------------------------------
--- Input: presses and casts
---------------------------------------------------------------------------
-
 function RM:RecordPress(name, t)
 	if not self.root or not self.root:IsShown() or not name then
 		return
@@ -734,8 +687,6 @@ function RM:RecordPress(name, t)
 	while list[1] and t - list[1] > 2 do
 		table.remove(list, 1)
 	end
-	-- Off-GCD abilities are judged on the key press itself: "next swing"
-	-- abilities only report success when the swing lands, seconds later.
 	local note = self.offNote
 	if note and note.state == "pending" and note.key == key and not Engine.freestyle then
 		self:JudgeError(t - note.T, note.lane)
@@ -745,9 +696,6 @@ function RM:RecordPress(name, t)
 	end
 end
 
--- Picks the press that most likely triggered a cast seen at eventT: the
--- earliest press inside the spell queue window (plus latency allowance),
--- else the latest recent press, else the event time itself.
 function RM:PressTimeFor(key, eventT)
 	local list = self.presses[key]
 	if not list or #list == 0 then
@@ -797,7 +745,6 @@ function RM:JudgeError(errSeconds, lane)
 end
 
 function RM:PlayHitsound()
-	-- Raid Mode stays quiet unless the player asked for hitsounds.
 end
 
 function RM:OnCast(kind, castGUID, spellID)
@@ -806,7 +753,6 @@ function RM:OnCast(kind, castGUID, spellID)
 	end
 	local now = GetTime()
 	if castGUID and self.castGUIDs[castGUID] then
-		-- second event for a cast we already judged (cast-time spells)
 		if kind == "SUCCEEDED" then
 			local hold = self.holds[castGUID]
 			if hold then
@@ -823,13 +769,11 @@ function RM:OnCast(kind, castGUID, spellID)
 		return
 	end
 	local key = name:lower()
-	-- Already judged when the key was pressed (off-GCD abilities).
 	local judgedAt = self.pressJudged[key]
 	if judgedAt and now - judgedAt < 5 then
 		self.pressJudged[key] = nil
 		return
 	end
-	-- Channels can report both CHANNEL_START and SUCCEEDED; judge once.
 	if self.lastCastKey == key and now - (self.lastCastAt or 0) < 0.25 then
 		return
 	end
@@ -864,8 +808,6 @@ function RM:OnCast(kind, castGUID, spellID)
 			self:Finish(note, "hit", now)
 		end
 	elseif BC.db.raid.difficulty ~= "easy" then
-		-- A rotation ability pressed instead of the suggested one in the
-		-- same stream (on-GCD vs off-GCD).
 		local laneIndex = Engine:LaneFor(name)
 		local lane = laneIndex and self.lanes[laneIndex]
 		local stream = lane and lane.spec.kind == "rot" and (lane.spec.off and "offNote" or "rotNote")
@@ -897,10 +839,6 @@ function RM:JudgeFreestyle(pressT)
 	local _, errMs = Beatmap.NearestGrid(self.bm, songT, 2)
 	self:JudgeError(errMs / 1000, self.lanes[1])
 end
-
---------------------------------------------------------------------------
--- Rendering
---------------------------------------------------------------------------
 
 function RM:ShowJudge(label, value)
 	self.judgeLabel, self.judgeAt = label, GetTime()
@@ -943,7 +881,6 @@ function RM:RenderNotes(now)
 			f.glow:SetAlpha(0.5 + 0.3 * math.sin(now * 12))
 			lane.flashAt = now
 			if now > note.holdUntil + 1.5 then
-				-- never got a success/fail event; let it go quietly
 				self:Finish(note, "cancel", now)
 			end
 		else
@@ -961,7 +898,6 @@ function RM:RenderNotes(now)
 		end
 	end
 end
-
 
 function RM:RenderBeatLane(now)
 	local lane = self.lanes[1]
@@ -1001,7 +937,6 @@ function RM:RenderBeatLane(now)
 		m:Show()
 		t = t + step
 	end
-	-- pulse the receptor on each beat
 	local _, err = Beatmap.NearestGrid(self.bm, songNow, 1)
 	if math.abs(err) < 60 then
 		lane.flashAt = math.max(lane.flashAt, now - 0.05)
@@ -1047,10 +982,6 @@ function RM:OnUpdate()
 		self.judge:SetAlpha(age < 0.6 and 1 - age / 0.6 or 0)
 	end
 end
-
---------------------------------------------------------------------------
--- Fight summary
---------------------------------------------------------------------------
 
 function RM:ShowSummary(tally)
 	if not BC.db.raid.summary or tally:Total() < 5 then
@@ -1108,10 +1039,6 @@ function RM:ShowSummary(tally)
 	toast:SetAlpha(1)
 	toast:Show()
 end
-
---------------------------------------------------------------------------
--- Setup
---------------------------------------------------------------------------
 
 function RM:InstallHooks()
 	hooksecurefunc("UseAction", function(slot)
@@ -1243,7 +1170,6 @@ BC:On("ACTIONBAR_SLOT_CHANGED", function()
 	end
 end)
 
--- Old cast GUIDs are pruned periodically.
 C_Timer.NewTicker(10, function()
 	local now = GetTime()
 	for guid, t in pairs(RM.castGUIDs) do
@@ -1252,4 +1178,3 @@ C_Timer.NewTicker(10, function()
 		end
 	end
 end)
-

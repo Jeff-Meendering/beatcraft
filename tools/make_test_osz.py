@@ -1,8 +1,4 @@
-"""Builds a synthetic .osz (beatmap + fake MP3 + background) for testing the
-importer and the addon without real osu! content.
-
-usage: python tools/make_test_osz.py <output_dir>
-"""
+"""Builds a synthetic test .osz: python tools/make_test_osz.py <output_dir>"""
 import io
 import os
 import sys
@@ -61,11 +57,9 @@ Combo2 : 0,200,255
 def objects():
     lines = []
     t = 1000
-    # circles on the beat
     for i in range(16):
         lines.append(f"{64 + (i % 8) * 50},{100 + (i % 3) * 60},{t},{5 if i == 0 else 1},0,0:0:0:0:")
         t += 500
-    # sliders of each curve type
     lines.append(f"100,200,{t},6,0,B|150:100|250:100|300:200,1,250,0|0,0:0|0:0,0:0:0:0:")
     t += 1000
     lines.append(f"300,200,{t},2,0,P|350:100|400:200,2,150")
@@ -74,10 +68,8 @@ def objects():
     t += 1000
     lines.append(f"200,100,{t},2,0,C|250:150|300:100|350:150,1,180")
     t += 1000
-    # spinner
     lines.append(f"256,192,{t},12,0,{t + 3000},0:0:0:0:")
     t += 4000
-    # after the break (20000-24000)
     t = max(t, 25000)
     for i in range(20):
         lines.append(f"{80 + (i % 6) * 60},{80 + (i % 4) * 60},{t},1,0,0:0:0:0:")
@@ -86,9 +78,8 @@ def objects():
 
 
 def fake_mp3(seconds):
-    # ID3v2 header with a small padded tag, then MPEG-1 Layer III frames
     tag = b"ID3" + bytes([4, 0, 0, 0, 0, 0, 20]) + b"\0" * 20
-    frame_len = 417  # 128 kbps, 44.1 kHz, no padding
+    frame_len = 417
     header = bytes([0xFF, 0xFB, 0x90, 0x00])
     frame = header + b"\0" * (frame_len - 4)
     n = int(seconds * 44100 / 1152)
@@ -114,7 +105,6 @@ def main():
         for version, od, ar in (("Easy", 3, 4), ("Hard", 7, 8)):
             z.writestr(f"Beatcraft - Test Song (tester) [{version}].osu",
                        OSU.format(version=version, od=od, ar=ar, setid=987654, objects=objects()))
-        # an osu!mania difficulty that must be skipped
         z.writestr("Beatcraft - Test Song (tester) [Mania].osu",
                    OSU.format(version="Mania", od=5, ar=5, setid=987654, objects=objects()).replace("Mode: 0", "Mode: 3"))
     print(path)

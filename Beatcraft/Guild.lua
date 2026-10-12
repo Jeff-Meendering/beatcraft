@@ -1,7 +1,3 @@
--- Guild leaderboards. When you set a personal best, a small hidden addon
--- message is sent to your guild; guildmates running Beatcraft store it and
--- show it on song select and results. Maps are matched by the beatmap
--- file's hash, so everyone needs the same map imported to compare.
 local _, BC = ...
 
 local Compat = BC.Compat

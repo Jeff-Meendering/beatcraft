@@ -1,6 +1,3 @@
--- Thin wrappers over WoW APIs that differ between client flavors
--- (TBC Anniversary, Classic Era, and future classic-based clients).
--- Everything else in the addon calls these instead of the raw API.
 local _, BC = ...
 
 local Compat = {}
@@ -19,8 +16,6 @@ function Compat.Now()
 	return GetTime()
 end
 
--- Higher resolution clock for the downtime game. Only compare its values
--- with other PreciseNow() values; its base differs from GetTime().
 function Compat.PreciseNow()
 	if precise then
 		return precise()
@@ -28,7 +23,6 @@ function Compat.PreciseNow()
 	return GetTime()
 end
 
--- "Frostbolt(Rank 3)" -> "Frostbolt". Leaves "Mangle (Cat)" alone.
 function Compat.StripRank(name)
 	if type(name) ~= "string" then
 		return name
@@ -36,11 +30,6 @@ function Compat.StripRank(name)
 	return (name:gsub("%s*%([Rr]ank%s*%d+%)%s*$", ""))
 end
 
---------------------------------------------------------------------------
--- Spells
---------------------------------------------------------------------------
-
--- Returns name, icon, castTimeSeconds, spellID for a spell name or ID.
 function Compat.SpellInfo(spell)
 	if spell == nil or spell == "" then
 		return
@@ -113,7 +102,6 @@ function Compat.RebuildSpellbook()
 	spellbookScanned = next(knownSpells) ~= nil
 end
 
--- True when the player has this spell in their spellbook.
 function Compat.IsKnown(name)
 	if type(name) ~= "string" or name == "" then
 		return false
@@ -121,12 +109,9 @@ function Compat.IsKnown(name)
 	if spellbookScanned then
 		return knownSpells[Compat.StripRank(name):lower()] == true
 	end
-	-- Spellbook scan failed on this client; fall back to name lookup,
-	-- which only resolves for spells the player knows.
 	return Compat.SpellInfo(name) ~= nil
 end
 
--- Returns start, duration of the spell's cooldown (includes the GCD).
 function Compat.SpellCooldown(spell)
 	if C_Spell and C_Spell.GetSpellCooldown then
 		local ok, cd = pcall(C_Spell.GetSpellCooldown, spell)
@@ -143,7 +128,6 @@ function Compat.SpellCooldown(spell)
 	return 0, 0
 end
 
--- Returns usable, notEnoughPower
 function Compat.SpellUsable(spell)
 	if C_Spell and C_Spell.IsSpellUsable then
 		local ok, usable, noPower = pcall(C_Spell.IsSpellUsable, spell)
@@ -160,8 +144,6 @@ function Compat.SpellUsable(spell)
 	return true, false
 end
 
--- True while a spell is queued or active, e.g. Heroic Strike waiting for
--- the next melee swing.
 function Compat.IsCurrentSpell(spell)
 	local fn = (C_Spell and C_Spell.IsCurrentSpell) or IsCurrentSpell
 	if not fn then
@@ -171,7 +153,6 @@ function Compat.IsCurrentSpell(spell)
 	return ok and r and true or false
 end
 
--- true / false / nil (nil = no range or no target)
 function Compat.SpellInRange(spell, unit)
 	local fn = (C_Spell and C_Spell.IsSpellInRange) or IsSpellInRange
 	if not fn then
@@ -184,12 +165,6 @@ function Compat.SpellInRange(spell, unit)
 	return r == true or r == 1
 end
 
---------------------------------------------------------------------------
--- Auras
---------------------------------------------------------------------------
-
--- Returns remainingSeconds, stacks. remaining is 0 when the aura is absent
--- and 999 for auras without a duration.
 function Compat.FindAura(unit, name, filter)
 	if type(name) ~= "string" or not UnitExists(unit) then
 		return 0, 0
@@ -227,11 +202,6 @@ function Compat.FindAura(unit, name, filter)
 	return 0, 0
 end
 
---------------------------------------------------------------------------
--- Talents / casting / action bars
---------------------------------------------------------------------------
-
--- Index of the talent tree with the most points, or nil below level 10.
 function Compat.PrimaryTree()
 	if not GetNumTalentTabs or not GetTalentTabInfo then
 		return nil
@@ -241,9 +211,9 @@ function Compat.PrimaryTree()
 		local r = { GetTalentTabInfo(i) }
 		local points
 		if type(r[1]) == "number" then
-			points = r[5] -- id, name, description, icon, pointsSpent
+			points = r[5]
 		else
-			points = r[3] -- name, icon, pointsSpent
+			points = r[3]
 		end
 		if type(points) == "number" and points > bestPoints then
 			best, bestPoints = i, points
@@ -252,8 +222,6 @@ function Compat.PrimaryTree()
 	return best
 end
 
--- Returns endTime (GetTime base), spellName, isChannel for the player's
--- current cast, or nil.
 function Compat.PlayerCast()
 	if UnitCastingInfo then
 		local name, _, _, _, endMS = UnitCastingInfo("player")
@@ -276,7 +244,6 @@ function Compat.ComboPoints()
 	return UnitPower("player", 4) or 0
 end
 
--- Spell name on an action bar slot (direct spells and simple macros).
 function Compat.ActionSpellName(slot)
 	if not GetActionInfo then
 		return
@@ -293,10 +260,6 @@ function Compat.ActionSpellName(slot)
 		end
 	end
 end
-
---------------------------------------------------------------------------
--- Addons, chat, sound
---------------------------------------------------------------------------
 
 function Compat.LoadAddOn(name)
 	local fn = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
@@ -325,7 +288,6 @@ function Compat.SendAddonMessage(prefix, msg, channel, target)
 	end
 end
 
--- Returns willPlay, handle
 function Compat.PlayFile(path, channel)
 	local ok, willPlay, handle = pcall(PlaySoundFile, path, channel or "Master")
 	if ok then

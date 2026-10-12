@@ -1,6 +1,3 @@
--- Rotation editor: edit the priority list for any class/tree, with live
--- validation, a "next ability" preview, and text import/export so players
--- can share rotations.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -389,10 +386,6 @@ function Editor:Save()
 		BC:Print("Rotation saved.")
 	end
 end
-
---------------------------------------------------------------------------
--- Text import / export
---------------------------------------------------------------------------
 
 function Editor:Export()
 	local lines = { "# Beatcraft rotation: " .. Engine:SpecName(self.class, self.tree) .. " " .. (BC.ClassNames[self.class] or "") }

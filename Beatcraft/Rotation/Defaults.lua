@@ -1,9 +1,3 @@
--- Default priority lists for every TBC class and talent tree.
--- Each entry: spell = exact spell name, cond = condition (see Conditions.lua),
--- off = true for abilities that are not on the global cooldown.
--- Healing trees are empty on purpose: they use Freestyle (every cast is
--- judged against the beat) because healing is reactive, not a rotation.
--- Players can edit all of these in-game with /beat editor.
 local _, BC = ...
 
 local SHOUT = 'buff("Battle Shout") < 3 and buff("Commanding Shout") == 0'

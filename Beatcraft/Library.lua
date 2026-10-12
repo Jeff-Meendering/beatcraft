@@ -1,6 +1,3 @@
--- Access to imported songs. The importer writes them into a separate,
--- load-on-demand addon (Beatcraft_Library) so updating Beatcraft never
--- deletes anyone's songs, and the data only uses memory once opened.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -23,7 +20,6 @@ local function titleKey(song)
 	return ((song.title or "") .. " " .. (song.artist or "")):lower()
 end
 
--- Returns true, or false and a readable reason.
 function Library:Load()
 	if self.loaded then
 		return true
@@ -84,7 +80,6 @@ function Library:Random()
 	return self.songs[math.random(#self.songs)]
 end
 
--- Filters songs by a search string (matches title, artist, mapper, tags).
 function Library:Search(text)
 	text = (text or ""):lower()
 	if text == "" then
@@ -110,7 +105,6 @@ function Library:Search(text)
 	return out
 end
 
--- Parsed beatmaps are cached; only a few are kept to limit memory.
 local cache, cacheOrder = {}, {}
 
 function Library:Parse(map, mods)
@@ -127,8 +121,6 @@ function Library:Parse(map, mods)
 	return bm
 end
 
--- The map used for raid music/bonus notes: the hardest difficulty that is
--- still reasonable, so bonus lanes have something to work with.
 function Library:RaidMap(song)
 	local pick = song.maps[1]
 	for _, map in ipairs(song.maps) do

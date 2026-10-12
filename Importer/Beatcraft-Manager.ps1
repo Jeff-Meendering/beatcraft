@@ -1,19 +1,3 @@
-<#
-Beatcraft Manager
-  - installs / updates the Beatcraft addon into your WoW folder
-  - imports osu! beatmaps (.osz files or your osu! Songs folder) into the
-    Beatcraft_Library addon: copies the music, converts backgrounds to TGA,
-    cuts short preview clips and writes the beatmap data as Lua.
-
-Runs on stock Windows PowerShell 5.1; nothing to install.
-Start it with "Beatcraft Manager.bat" (double-click).
-
-Non-interactive use (for scripts/tests):
-  -WowPath <flavor folder>  e.g. "C:\Program Files (x86)\World of Warcraft\_anniversary_"
-  -LibraryPath <folder>     write the library somewhere else (testing)
-  -Action install|import|osu|rebuild
-  -Source <folder>          for -Action import: where the .osz files are
-#>
 param(
 	[string]$WowPath,
 	[string]$LibraryPath,
@@ -39,10 +23,6 @@ function Write-Info($msg) { Write-Host $msg -ForegroundColor Gray }
 function Write-Good($msg) { Write-Host $msg -ForegroundColor Green }
 function Write-Warn($msg) { Write-Host $msg -ForegroundColor Yellow }
 function Write-Title($msg) { Write-Host $msg -ForegroundColor Magenta }
-
-#--------------------------------------------------------------------------
-# Settings and WoW detection
-#--------------------------------------------------------------------------
 
 function Get-Settings {
 	if (Test-Path -LiteralPath $SettingsFile) {
@@ -111,10 +91,6 @@ function Select-Flavor($settings, [switch]$Force) {
 	return $settings.WowPath
 }
 
-#--------------------------------------------------------------------------
-# .osu parsing
-#--------------------------------------------------------------------------
-
 function Read-OsuFile([string]$path) {
 	$lines = [IO.File]::ReadAllLines($path, [Text.Encoding]::UTF8)
 	$data = @{
@@ -172,11 +148,6 @@ function Get-StringMd5([string]$s) {
 	} finally { $md5.Dispose() }
 }
 
-#--------------------------------------------------------------------------
-# Media conversion
-#--------------------------------------------------------------------------
-
-# Writes a 32-bit uncompressed TGA (bottom-up), cropped to 2:1 and resized.
 function Convert-ImageToTga([string]$src, [string]$dst, [int]$width = 1024, [int]$height = 512) {
 	$bytes = [IO.File]::ReadAllBytes($src)
 	$ms = New-Object IO.MemoryStream(, $bytes)
@@ -209,7 +180,6 @@ function Convert-ImageToTga([string]$src, [string]$dst, [int]$width = 1024, [int
 		$out[14] = $height -band 0xFF; $out[15] = $height -shr 8
 		$out[16] = 32; $out[17] = 8
 		for ($y = 0; $y -lt $height; $y++) {
-			# GDI rows are top-down; TGA default origin is bottom-left
 			[Array]::Copy($pixels, $y * $stride, $out, 18 + ($height - 1 - $y) * $rowBytes, $rowBytes)
 		}
 		[IO.File]::WriteAllBytes($dst, $out)
@@ -222,7 +192,6 @@ $Mp3Bitrates1 = @(0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 3
 $Mp3Bitrates2 = @(0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160)
 $Mp3Rates = @{ 3 = @(44100, 48000, 32000); 2 = @(22050, 24000, 16000); 0 = @(11025, 12000, 8000) }
 
-# Walks MPEG layer III frames. Returns a list of @(offset, length, durationMs).
 function Get-Mp3Frames([byte[]]$b) {
 	$frames = New-Object System.Collections.Generic.List[object]
 	$pos = 0
@@ -257,8 +226,6 @@ function Get-Mp3Frames([byte[]]$b) {
 	return , $frames
 }
 
-# Copies [startMs, startMs + durMs) of an MP3 into a new file. Returns
-# the total song length in ms, or 0 if the file could not be parsed.
 function Save-Mp3Preview([string]$src, [string]$dst, [double]$startMs, [double]$durMs) {
 	$b = [IO.File]::ReadAllBytes($src)
 	$frames = Get-Mp3Frames $b
@@ -283,16 +250,11 @@ function Save-Mp3Preview([string]$src, [string]$dst, [double]$startMs, [double]$
 	return $total
 }
 
-#--------------------------------------------------------------------------
-# Importing
-#--------------------------------------------------------------------------
-
 function Get-LibraryRoot([string]$wow) {
 	if ($LibraryPath) { return $LibraryPath }
 	return Join-Path $wow "Interface\AddOns\$LibAddon"
 }
 
-# Imports one beatmap set folder (extracted .osz or osu! Songs folder).
 function Import-SetFolder([string]$dir, [string]$libRoot) {
 	$osuFiles = @(Get-ChildItem -LiteralPath $dir -Filter '*.osu' -File)
 	$maps = @()
@@ -334,7 +296,6 @@ function Import-SetFolder([string]$dir, [string]$libRoot) {
 	Copy-Item -LiteralPath $audioPath -Destination (Join-Path $dest "audio$ext")
 	$i = 0
 	foreach ($m in $maps) {
-		# difficulties that use a different audio file can't share this folder
 		if ((Get-Field $m.General 'AudioFilename' '') -ne $audio) { continue }
 		$i++
 		Copy-Item -LiteralPath $m.Path -Destination (Join-Path $dest ("map{0:D2}.osu" -f $i))
@@ -371,10 +332,6 @@ function Import-Osz([string]$file, [string]$libRoot) {
 	}
 }
 
-#--------------------------------------------------------------------------
-# Library.lua generation
-#--------------------------------------------------------------------------
-
 function ConvertTo-LuaString([string]$s) {
 	if ($null -eq $s) { $s = '' }
 	$sb = New-Object Text.StringBuilder
@@ -405,7 +362,6 @@ function ConvertTo-LuaNumber($v) {
 	return (ConvertTo-Double $v).ToString($Invariant)
 }
 
-# Keeps only the hit object fields Beatcraft uses.
 function Compress-HitObject([string]$line) {
 	$f = $line.Split(',')
 	if ($f.Count -lt 4) { return $null }
@@ -433,7 +389,6 @@ function Get-MapEntry($osu, [string]$hash) {
 	}
 	if ($null -eq $firstT) { $firstT = 0 }
 
-	# BPM of the longest-lasting uninherited timing point
 	$reds = @()
 	foreach ($tp in $osu.TimingPoints) {
 		$f = $tp.Split(',')
@@ -552,10 +507,6 @@ function Build-Library([string]$libRoot, [string]$wow) {
 	Write-Good "Library rebuilt: $count songs, $mapCount difficulties."
 	return $count
 }
-
-#--------------------------------------------------------------------------
-# Actions
-#--------------------------------------------------------------------------
 
 function Install-Addon([string]$wow) {
 	if (-not (Test-Path -LiteralPath $AddonSource)) { throw "Beatcraft addon folder not found next to the manager ($AddonSource)." }
@@ -710,10 +661,6 @@ function Show-Menu {
 		}
 	}
 }
-
-#--------------------------------------------------------------------------
-# Entry point
-#--------------------------------------------------------------------------
 
 if ($Action) {
 	if (-not $WowPath -and -not $LibraryPath) { $WowPath = Select-Flavor (Get-Settings) }

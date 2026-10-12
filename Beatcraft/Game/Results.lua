@@ -1,4 +1,3 @@
--- Results screen shown after finishing a map.
 local _, BC = ...
 
 local U = BC.Util

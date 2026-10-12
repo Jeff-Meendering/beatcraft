@@ -1,7 +1,3 @@
--- Rotation conditions are small Lua expressions, e.g.
---   combo >= 5 and debuff("Rupture") < 1
--- They run in a sandbox that only exposes the helpers below, so a rotation
--- string shared by a friend cannot touch anything else in the game.
 local _, BC = ...
 
 local Compat = BC.Compat
@@ -27,7 +23,6 @@ local function auraStacks(unit, filter)
 	end
 end
 
--- Remaining cooldown ignoring the global cooldown.
 local function cooldown(name)
 	local start, duration = Compat.SpellCooldown(name)
 	if not start or not duration or duration <= 1.6 then
@@ -49,7 +44,6 @@ BC:On("PLAYER_REGEN_ENABLED", function()
 	combatStart = nil
 end)
 
--- Functions callable from conditions. Documented in the editor's help.
 Cond.HELPERS = {
 	buff = aura("player", "HELPFUL"),
 	buffStacks = auraStacks("player", "HELPFUL"),
@@ -88,7 +82,6 @@ Cond.HELPERS = {
 	floor = math.floor,
 }
 
--- Values readable as plain words in conditions.
 Cond.VARS = {
 	power = function()
 		return UnitPower("player")
@@ -181,7 +174,6 @@ local function always()
 	return true
 end
 
--- Returns a function, or nil and an error message.
 function Cond.Compile(expr)
 	expr = BC.Util.Trim(expr or "")
 	if expr == "" then
@@ -201,7 +193,6 @@ function Cond.Compile(expr)
 	return fn
 end
 
--- Returns passed, errorMessage
 function Cond.Eval(fn)
 	local ok, result = pcall(fn)
 	if not ok then

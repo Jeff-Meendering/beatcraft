@@ -1,6 +1,3 @@
--- Headless tests for Beatcraft. Run via tools/run_tests.py.
--- Expects globals ADDON_DIR and LIB_PATH (path to a generated Library.lua).
-
 local passed, failed = 0, 0
 local function check(cond, msg)
 	if cond then
@@ -14,7 +11,6 @@ local function section(name)
 	print("== " .. name)
 end
 
--- load in TOC order
 local files = {}
 for line in io.lines(ADDON_DIR .. "/Beatcraft.toc") do
 	if line ~= "" and not line:match("^#") then
@@ -82,13 +78,10 @@ check(BC.Library.loaded, "library loaded on demand")
 check(RM.root:IsShown(), "lanes shown with a hostile target")
 check(RM.nextSong ~= nil, "a song is queued for the pull")
 
--- simple simulated player: whenever a note is due, press it like a human
--- would (with the action-bar hook), then fire the spellcast events.
 local slotOf = {}
 for slot, id in pairs(MOCK.actions) do
 	slotOf[MOCK.spellById[id].name] = slot
 end
--- Fires the spellcast events for a cast that actually happens now.
 local function castNow(name)
 	local s = MOCK.spellByName[name:lower()]
 	local guid = "Cast-" .. math.random(1, 1e9)
@@ -112,8 +105,6 @@ local function castNow(name)
 	end
 end
 
--- A key press, with WoW's rules: on-GCD presses up to 400 ms early are
--- queued; "next swing" abilities fire when the swing lands.
 local queued
 local function cast(name)
 	local s = MOCK.spellByName[name:lower()]
@@ -179,7 +170,6 @@ check(pressed >= 8 and pressed <= tally:Total() + 3, "the simulated player press
 check(tally:Total() >= 8, "casts were judged")
 check(tally.c300 + tally.c100 >= tally:Total() * 0.8, "on-time casts are mostly PERFECT/GREAT")
 
--- notes should land on the beat grid when music plays
 local onBeat = 0
 local snapped = 0
 local note = RM.rotNote
@@ -189,7 +179,6 @@ if note then
 	print(string.format("   pending note %s at song %.0f ms, %.1f ms from the half-beat grid", note.spell, songMs, errMs))
 end
 
--- an off-script cast breaks combo
 local before = tally.combo
 RM.rotNote = nil
 RM:Evaluate(MOCK.now)
@@ -289,7 +278,6 @@ MOCK.onTick = function()
 	end
 	local t = BC.Clock:Time()
 	local obj = bm.objects[idx]
-	-- follow the active slider / spinner
 	if holding then
 		local cur = bm.objects[idx - 1]
 		if cur.kind == "slider" then

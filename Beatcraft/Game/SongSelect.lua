@@ -1,5 +1,3 @@
--- Song select: searchable song list, difficulty picker, mods, previews,
--- local and guild best scores.
 local _, BC = ...
 
 local U = BC.Util
@@ -42,7 +40,6 @@ function Select:Create(root)
 	screen:Hide()
 	self.screen = screen
 
-	-- right: search + list
 	local listW = 460
 	local right = CreateFrame("Frame", nil, screen)
 	right:SetPoint("TOPRIGHT", -24, -24)
@@ -142,7 +139,6 @@ function Select:Create(root)
 	self.count:SetPoint("BOTTOMLEFT", 10, 8)
 	self.count:SetTextColor(0.6, 0.6, 0.65)
 
-	-- left: song details
 	local left = CreateFrame("Frame", nil, screen)
 	left:SetPoint("TOPLEFT", 24, -24)
 	left:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", -24, 0)
@@ -167,7 +163,6 @@ function Select:Create(root)
 	self.mapper:SetPoint("TOPLEFT", self.artist, "BOTTOMLEFT", 0, -6)
 	self.mapper:SetTextColor(0.7, 0.7, 0.75)
 
-	-- difficulty buttons
 	self.diffButtons = {}
 	for i = 1, 10 do
 		local b = W.Button(left, "", 120, 40, function(btn)
@@ -188,7 +183,6 @@ function Select:Create(root)
 	self.stats:SetJustifyH("LEFT")
 	self.stats:SetSpacing(4)
 
-	-- mods
 	local modLabel = W.Text(left, 12, "Mods", "OUTLINE")
 	modLabel:SetPoint("TOPLEFT", self.stats, "BOTTOMLEFT", 0, -20)
 	self.modButtons = {}
@@ -201,7 +195,6 @@ function Select:Create(root)
 		self.modButtons[m.key] = b
 	end
 
-	-- best scores
 	self.best = W.Text(left, 13, "", "OUTLINE")
 	self.best:SetPoint("TOPLEFT", modLabel, "BOTTOMLEFT", 0, -50)
 	self.best:SetJustifyH("LEFT")
@@ -211,7 +204,6 @@ function Select:Create(root)
 	self.guild:SetJustifyH("LEFT")
 	self.guild:SetSpacing(3)
 
-	-- bottom bar
 	local bar = CreateFrame("Frame", nil, screen)
 	bar:SetPoint("BOTTOMLEFT", 24, 18)
 	bar:SetPoint("BOTTOMRIGHT", -24, 18)
@@ -242,7 +234,6 @@ function Select:Create(root)
 	hint:SetPoint("LEFT", options, "RIGHT", 16, 0)
 	hint:SetTextColor(0.65, 0.65, 0.7)
 
-	-- empty library message
 	self.empty = W.Text(screen, 16, "", "OUTLINE")
 	self.empty:SetPoint("CENTER", left, "CENTER")
 	self.empty:SetWidth(520)

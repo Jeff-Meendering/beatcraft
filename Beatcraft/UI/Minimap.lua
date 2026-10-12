@@ -1,5 +1,3 @@
--- Minimap button: left-click opens the menu, right-click toggles Raid Mode,
--- drag to move it around the minimap.
 local _, BC = ...
 
 local Mini = BC:Module("Minimap")

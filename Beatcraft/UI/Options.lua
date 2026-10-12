@@ -1,4 +1,3 @@
--- Settings window.
 local _, BC = ...
 
 local W = BC.Widgets
@@ -44,7 +43,6 @@ function Opt:Create()
 	local g = db.game
 	local r = db.raid
 
-	-- left column -------------------------------------------------------
 	local L = at({ x = 16, y = -44 })
 	header(L, "Sound")
 	place(L, W.Dropdown(f, "Music channel (uses that WoW volume slider)", {
@@ -123,7 +121,6 @@ function Opt:Create()
 		BC.Minimap:SetShown(v)
 	end, 280), 22)
 
-	-- right column ------------------------------------------------------
 	local R = at({ x = 330, y = -44 })
 	header(R, "Raid Mode")
 	place(R, W.Check(f, "Enabled", function()
@@ -266,7 +263,6 @@ end
 
 function Opt:Open()
 	self:Create()
-	-- above the fullscreen game window when opened from song select
 	if BC.Game:IsOpen() then
 		self.frame:SetFrameStrata("FULLSCREEN_DIALOG")
 		self.frame:SetFrameLevel(BC.Game.root:GetFrameLevel() + 3000)
