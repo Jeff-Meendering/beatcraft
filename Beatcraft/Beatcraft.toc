@@ -1,7 +1,7 @@
 ## Interface: 20506, 20505, 11508
 ## Title: |cffff66aaBeatcraft|r
 ## Notes: Rhythm game inside WoW. Raid Mode turns your rotation into a song; Downtime Mode plays full beatmaps between pulls.
-## Version: 0.1.0
+## Version: 0.2.0
 ## SavedVariables: BeatcraftDB
 ## IconTexture: Interface\AddOns\Beatcraft\Media\logo
 
@@ -17,7 +17,9 @@ Rotation\Defaults.lua
 Rotation\Conditions.lua
 Rotation\Engine.lua
 Raid\RaidMode.lua
+Raid\LiveFrames.lua
 Game\Playfield.lua
+Game\FramePractice.lua
 Game\SongSelect.lua
 Game\Results.lua
 UI\MainMenu.lua

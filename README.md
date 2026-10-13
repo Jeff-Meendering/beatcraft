@@ -4,6 +4,8 @@ An osu!-style rhythm game addon for WoW (TBC Anniversary, Classic Era).
 
 - **Raid Mode**: your rotation as notes on the music's beat.
 - **Downtime Mode**: full osu! gameplay between pulls.
+- **Moving raid frames**: real party/raid or focus frames that jump after every click, in or out of combat.
+- **Frame Practice**: an out-of-combat aim drill with simulated moving frames.
 
 ## Setup
 
@@ -15,7 +17,11 @@ The manager can download ffmpeg to also import beatmap videos and hitsounds.
 
 ## Commands
 
-`/beat` menu · `/beat play` · `/beat raid` · `/beat editor` · `/beat calibrate` · `/beat unlock` · Tab toggles the see-through background
+`/beat` menu · `/beat play` · `/beat live` · `/beat frames` · `/beat raid` · `/beat editor` · `/beat calibrate` · `/beat unlock` · Tab toggles the see-through background
+
+**Moving raid frames** (`/beat live`): real secure unit frames that target (or cast a spell you set) on left-click, then jump to a random spot nearby. The most injured member is marked **CLICK**; hitting it builds a combo and a summary prints after each fight. WoW blocks addons from moving these frames smoothly in combat, so they hop on each click instead. Settings changed mid-fight apply when combat ends.
+
+**Frame Practice** (`/beat frames`): simulated raid or focus frames drift around for 30 seconds; click the one marked **CLICK**. Bests are saved per style and speed. It closes when combat starts.
 
 The default background lightly blends the song image or video over the WoW world at 85% opacity, with the interface at 95% opacity. Tab cycles through blended, song, and world-only backgrounds; your selection is saved. Options includes a song/video opacity slider.
 
@@ -32,5 +38,7 @@ Video imports default to 640x360 at 12 fps. The manager also accepts `-VideoQual
 ```bash
 python tools/make_test_osz.py .work/test-import
 powershell -NoProfile -File Importer/Beatcraft-Manager.ps1 -Action import -LibraryPath .work/test-library -Source .work/test-import
-python tools/run_tests.py .work/test-library/Library.lua
+python tools/run_tests.py
 ```
+
+`python tools/package.py` builds `dist/Beatcraft-<version>.zip`.

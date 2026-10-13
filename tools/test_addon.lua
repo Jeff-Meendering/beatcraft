@@ -419,7 +419,7 @@ for k in pairs(MOCK.unknown) do
 	names[#names + 1] = k
 end
 table.sort(names)
-print("   " .. table.concat(names, ", "))
+check(#names == 0, "mock is missing widget methods: " .. table.concat(names, ", "))
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 RESULT_FAILED = failed

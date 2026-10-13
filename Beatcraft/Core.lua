@@ -2,7 +2,7 @@ local addonName, BC = ...
 _G.Beatcraft = BC
 
 BC.name = addonName
-BC.version = "0.1.0"
+BC.version = "0.2.0"
 BC.ACCENT = { 1, 0.4, 0.67 }
 BC.ACCENT_HEX = "ff66aa"
 BC.MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
@@ -21,6 +21,18 @@ local DEFAULTS = {
 	lastSong = nil,
 	lastMap = nil,
 	fights = {},
+	framePractice = { style = "raid", difficulty = "normal", best = {} },
+	liveFrames = {
+		enabled = false,
+		style = "raid",
+		distance = "medium",
+		show = "auto",
+		spell = "",
+		x = 0,
+		y = -180,
+		locked = true,
+		bestCombo = 0,
+	},
 	game = {
 		keys = { "Z", "X" },
 		dim = 0.75,
@@ -170,6 +182,8 @@ end)
 local HELP = {
 	"/beat - open the Beatcraft menu",
 	"/beat play - song select (out of combat)",
+	"/beat frames - moving frame practice (out of combat)",
+	"/beat live - real moving raid/focus frames (works in combat)",
 	"/beat raid - toggle Raid Mode",
 	"/beat editor - rotation editor",
 	"/beat options - settings",
@@ -183,6 +197,10 @@ local function slash(msg)
 		BC.MainMenu:Toggle()
 	elseif msg == "play" then
 		BC.SongSelect:Open()
+	elseif msg == "frames" or msg == "practice" then
+		BC.FramePractice:Open()
+	elseif msg == "live" then
+		BC.LiveFrames:OpenPanel()
 	elseif msg == "raid" then
 		BC.RaidMode:SetEnabled(not BC.db.raid.enabled)
 	elseif msg == "editor" or msg == "rotation" then

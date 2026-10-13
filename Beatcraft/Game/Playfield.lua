@@ -95,6 +95,7 @@ function Game:Create()
 	end)
 
 	Play:Create(root)
+	BC.FramePractice:Create(root)
 	BC.SongSelect:Create(root)
 	BC.Results:Create(root)
 	return true

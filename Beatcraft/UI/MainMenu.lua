@@ -8,7 +8,7 @@ function Menu:Create()
 	if self.frame then
 		return
 	end
-	local f = W.Panel("BeatcraftMenu", UIParent, 320, 470, nil)
+	local f = W.Panel("BeatcraftMenu", UIParent, 320, 542, nil)
 	f:SetPoint("CENTER", 0, 60)
 	self.frame = f
 
@@ -36,6 +36,12 @@ function Menu:Create()
 	self.play = add("Play songs (Downtime Mode)", function()
 		BC.SongSelect:Open()
 	end, true)
+	self.frames = add("Moving frame practice", function()
+		BC.FramePractice:Open()
+	end)
+	self.live = add("", function()
+		BC.LiveFrames:OpenPanel()
+	end)
 	self.raid = add("", function()
 		BC.RaidMode:SetEnabled(not BC.db.raid.enabled)
 		Menu:Refresh()
@@ -63,23 +69,29 @@ function Menu:Create()
 	f:SetScript("OnShow", function()
 		Menu:Refresh()
 	end)
-	BC:Listen("RAID_MODE_CHANGED", function()
-		if f:IsShown() then
-			Menu:Refresh()
-		end
-	end)
+	for _, msg in ipairs({ "RAID_MODE_CHANGED", "LIVE_FRAMES_CHANGED" }) do
+		BC:Listen(msg, function()
+			if f:IsShown() then
+				Menu:Refresh()
+			end
+		end)
+	end
 end
 
 function Menu:Refresh()
 	local db = BC.db
 	self.raid:SetLabel("Raid Mode: " .. (db.raid.enabled and "|cff66ff66ON|r" or "|cffff6666OFF|r"))
 	self.raid:SetActive(db.raid.enabled)
+	self.live:SetLabel("Moving raid frames: " .. (db.liveFrames.enabled and "|cff66ff66ON|r" or "|cffff6666OFF|r"))
+	self.live:SetActive(db.liveFrames.enabled)
 	self.move:SetLabel(db.raid.locked and "Move Raid Mode lanes" or "Lock Raid Mode lanes")
 	local inCombat = InCombatLockdown()
 	if inCombat then
 		self.play:Disable()
+		self.frames:Disable()
 	else
 		self.play:Enable()
+		self.frames:Enable()
 	end
 
 	local Engine = BC.Engine

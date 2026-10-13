@@ -21,6 +21,13 @@ MOCK = {
 	combo = 0,
 	soundHandle = 0,
 	current = {},
+	units = {},
+	groupSize = 0,
+	inRaid = false,
+	blocked = {},
+	secure = 0,
+	unitWatch = {},
+	stateDrivers = {},
 }
 
 function IsCurrentSpell(spell)
@@ -40,8 +47,11 @@ local KNOWN_NOOPS = {
 	"SetTextInsets", "SetAutoFocus", "SetMultiLine", "SetCursorPosition", "HighlightText", "SetHighlightTexture",
 	"SetThumbTexture", "SetOrientation", "SetValueStep", "SetObeyStepOnDrag", "SetScrollChild",
 	"SetVerticalScroll", "RegisterForClicks", "Raise", "SetAllPoints", "SetTextHeight", "UnregisterAllEvents",
-	"SetHitRectInsets", "SetMaxLetters",
+	"SetHitRectInsets", "SetMaxLetters", "SetStatusBarTexture", "SetStatusBarColor", "SetUserPlaced",
 }
+
+-- Optional fields addon code probes with `if frame.X then`; real frames return nil for these.
+local FIELDS = { Refresh = true }
 
 local Widget = {}
 Widget.__index = function(t, k)
@@ -49,7 +59,7 @@ Widget.__index = function(t, k)
 	if v ~= nil then
 		return v
 	end
-	if type(k) == "string" and k:match("^%u") then
+	if type(k) == "string" and k:match("^%u") and not FIELDS[k] then
 		MOCK.unknown[k] = true
 		return noop
 	end
@@ -113,7 +123,28 @@ function Widget:Fire(event, ...)
 		fn(self, ...)
 	end
 end
+-- Mirrors ADDON_ACTION_BLOCKED: insecure code may not change protected frames in combat.
+local function blocked(self, action)
+	if self._protected and MOCK.combat and MOCK.secure == 0 then
+		table.insert(MOCK.blocked, (self._name or "?") .. ":" .. action)
+		return true
+	end
+end
+MOCK.IsBlocked = blocked
+
+function Widget:SetAttribute(k, v)
+	if blocked(self, "SetAttribute") then return end
+	self._attrs = self._attrs or {}
+	self._attrs[k] = v
+end
+function Widget:GetAttribute(k)
+	return self._attrs and self._attrs[k]
+end
+function Widget:GetFrameRef(label)
+	return self:GetAttribute("frameref-" .. label)
+end
 function Widget:Show()
+	if blocked(self, "Show") then return end
 	local was = self:IsVisible()
 	self._shown = true
 	if not was and self:IsVisible() then
@@ -121,6 +152,7 @@ function Widget:Show()
 	end
 end
 function Widget:Hide()
+	if blocked(self, "Hide") then return end
 	local was = self:IsVisible()
 	self._shown = false
 	if was then
@@ -154,6 +186,7 @@ function Widget:GetParent()
 	return self._parent
 end
 function Widget:SetSize(w, h)
+	if blocked(self, "SetSize") then return end
 	self._w, self._h = w, h
 end
 function Widget:SetWidth(w)
@@ -174,9 +207,11 @@ function Widget:SetAllPoints(target)
 	self._allPoints = target or self._parent
 end
 function Widget:SetPoint(...)
+	if blocked(self, "SetPoint") then return end
 	table.insert(self._points, { ... })
 end
 function Widget:ClearAllPoints()
+	if blocked(self, "ClearAllPoints") then return end
 	self._points = {}
 end
 function Widget:GetPoint()
@@ -193,6 +228,10 @@ function Widget:GetTop()
 	return self._h
 end
 function Widget:GetCenter()
+	local p = self._points[1]
+	if p and p[1] == "CENTER" and p[3] == "BOTTOMLEFT" then
+		return p[4], p[5]
+	end
 	return self._w / 2, self._h / 2
 end
 function Widget:SetAlpha(a)
@@ -290,6 +329,7 @@ end
 
 function CreateFrame(kind, name, parent, template)
 	local f = newWidget(kind, name, parent)
+	f._protected = template and template:find("Secure") and true or nil
 	if parent == nil and kind ~= "GameTooltip" then
 		f._parent = UIParent
 	end
@@ -388,15 +428,25 @@ function UnitAffectingCombat()
 end
 
 function UnitClass(unit)
+	local u = MOCK.units[unit]
+	if u then
+		return u.class, u.class, 1
+	end
 	return "Warrior", MOCK.class or "WARRIOR", 1
 end
 function UnitName(unit)
+	if MOCK.units[unit] then
+		return MOCK.units[unit].name
+	end
 	if unit == "target" then
 		return MOCK.target.name
 	end
 	return "Tester"
 end
 function UnitExists(unit)
+	if MOCK.units[unit] then
+		return true
+	end
 	if unit == "target" then
 		return MOCK.target.exists
 	end
@@ -415,12 +465,18 @@ function UnitPowerMax(unit, kind)
 	return MOCK.powerMax[kind or 1] or 100
 end
 function UnitHealth(unit)
+	if MOCK.units[unit] then
+		return MOCK.units[unit].hp
+	end
 	if unit == "target" then
 		return MOCK.target.hp
 	end
 	return 80
 end
-function UnitHealthMax()
+function UnitHealthMax(unit)
+	if MOCK.units[unit] then
+		return MOCK.units[unit].max or 100
+	end
 	return 100
 end
 function UnitLevel(unit)
@@ -445,10 +501,21 @@ function GetComboPoints()
 	return MOCK.combo
 end
 function IsInGroup()
-	return false
+	return MOCK.groupSize > 0
 end
 function IsInRaid()
-	return false
+	return MOCK.inRaid
+end
+function GetNumGroupMembers()
+	return MOCK.groupSize
+end
+function UnitIsDeadOrGhost(unit)
+	local u = MOCK.units[unit]
+	return u and u.dead or false
+end
+function UnitIsConnected(unit)
+	local u = MOCK.units[unit]
+	return not (u and u.offline)
 end
 function IsInGuild()
 	return true
@@ -661,6 +728,54 @@ C_ChatInfo = {
 	end,
 }
 
+-- Secure handler API. Snippets run in a sandbox holding only the restricted
+-- globals the snippets use, so a forbidden global reference fails loudly.
+function SecureHandlerSetFrameRef(frame, label, ref)
+	frame._attrs = frame._attrs or {}
+	frame._attrs["frameref-" .. label] = ref
+end
+function SecureHandlerWrapScript(frame, script, header, preBody)
+	assert(header._protected, "Header frame must be explicitly protected")
+	local fn = assert(loadstring("local self, button, down = ...\n" .. preBody))
+	setfenv(fn, { random = math.random, abs = math.abs, floor = math.floor, min = math.min, max = math.max })
+	local old = frame._scripts[script]
+	frame._scripts[script] = function(self, button, down, ...)
+		MOCK.secure = MOCK.secure + 1
+		local ok, err = pcall(fn, self, button, down)
+		MOCK.secure = MOCK.secure - 1
+		if not ok then
+			error(err)
+		end
+		if old then
+			old(self, button, down, ...)
+		end
+	end
+end
+function RegisterUnitWatch(frame)
+	if blocked(frame, "RegisterUnitWatch") then return end
+	MOCK.unitWatch[frame] = true
+end
+function UnregisterUnitWatch(frame)
+	if blocked(frame, "UnregisterUnitWatch") then return end
+	MOCK.unitWatch[frame] = nil
+end
+function RegisterStateDriver(frame, state, value)
+	if blocked(frame, "RegisterStateDriver") then return end
+	MOCK.stateDrivers[frame] = value
+end
+function UnregisterStateDriver(frame, state)
+	if blocked(frame, "UnregisterStateDriver") then return end
+	MOCK.stateDrivers[frame] = nil
+end
+-- Runs the secure unit watch the way the client does, allowed in combat.
+function MOCK.UpdateUnitWatches()
+	MOCK.secure = MOCK.secure + 1
+	for frame in pairs(MOCK.unitWatch) do
+		frame:SetShown(UnitExists(frame:GetAttribute("unit")))
+	end
+	MOCK.secure = MOCK.secure - 1
+end
+
 function MOCK.FireEvent(event, ...)
 	local list = MOCK.events[event]
 	if not list then
@@ -694,6 +809,7 @@ function MOCK.Advance(seconds, step)
 		for _, t in ipairs(due) do
 			t.fn()
 		end
+		MOCK.UpdateUnitWatches()
 		for _, f in ipairs(MOCK.frames) do
 			local fn = f._scripts.OnUpdate
 			if fn and f:IsVisible() then
